@@ -1,0 +1,128 @@
+<?xml version="1.0" ?>
+<sdf version="1.4">
+  <world name="default">
+
+	 <scene>
+	    <shadows>0</shadows>
+  </scene>
+    <physics type="ode">
+      <gravity>0 0 -9.81</gravity>
+      <ode>
+        <solver>
+          <type>quick</type>
+          <iters>20</iters>
+          <sor>1.0</sor>
+        </solver>
+        <constraints>
+          <cfm>0.0</cfm>
+          <erp>0.2</erp>
+          <contact_max_correcting_vel>100.0</contact_max_correcting_vel>
+          <contact_surface_layer>0.0</contact_surface_layer>
+        </constraints>
+      </ode>
+      <real_time_update_rate>1000</real_time_update_rate>
+      <max_step_size>0.001</max_step_size>
+    </physics>
+    
+    <!-- A global light source -->
+    <include>
+      <uri>model://sun</uri>
+    </include>
+    
+                <!-- <light type="point" name="point1">
+      <pose>2 -2.5 2 0 0 0</pose>
+      <diffuse>1 1 1 1</diffuse>
+      <specular>.1 .1 .1 1</specular>
+      <attenuation>
+        <range>300</range>
+        <linear>0.2</linear>
+        <constant>0.8</constant>
+        <quadratic>0.01</quadratic>
+      </attenuation>
+      <cast_shadows>false</cast_shadows>
+    </light> -->
+    
+            <!-- <light type="point" name="point2">
+      <pose>2 2.5 2 0 0 0</pose>
+      <diffuse>1 1 1 1</diffuse>
+      <specular>.1 .1 .1 1</specular>
+      <attenuation>
+        <range>300</range>
+        <linear>0.2</linear>
+        <constant>0.8</constant>
+        <quadratic>0.01</quadratic>
+      </attenuation>
+      <cast_shadows>false</cast_shadows>
+    </light> -->
+    
+                <!-- <light type="point" name="point3">
+      <pose>2 0 2 0 0 0</pose>
+      <diffuse>1 1 1 1</diffuse>
+      <specular>.1 .1 .1 1</specular>
+      <attenuation>
+        <range>300</range>
+        <linear>0.2</linear>
+        <constant>0.8</constant>
+        <quadratic>0.01</quadratic>
+      </attenuation>
+      <cast_shadows>false</cast_shadows>
+    </light> -->
+    
+    <!-- A ground plane
+    <include>
+      <uri>model://ground_plane</uri>
+    </include> -->
+	
+
+    <!-- <include>
+      <uri>model://floor</uri>
+			<name>floor</name>
+			<pose>0 0 -0.05 0 0 0 </pose>
+    </include> -->
+
+                                <!-- WALLS -->	
+
+    <!-- <include>
+      <uri>model://kitchen_dining</uri>
+			<name>kitchen_dining</name>
+			<pose>3 0 -1.5 0 0 3.14159</pose>
+    </include> -->
+
+    <model name="kitchen_dining">
+      <link name="kitchen_dining_link">
+        <pose>4 12 -0.25 0 0 3.14159</pose>
+
+        <collision name="kitchen_dining_collision">
+          <geometry>
+            <mesh>
+              <!-- <uri>file:///home/tommaso/catkin_ws/src/rotors_simulator/rotors_gazebo/meshes/garching_kitchen.dae</uri> -->
+              <uri>model://kitchen_dining/meshes/kitchen_dining.dae</uri>
+              <!-- <uri>model://garching_kitchen</uri> -->
+              <scale>2 2 2</scale>
+            </mesh>
+          </geometry>
+        </collision>
+
+        <visual name="kitchen_dining">
+          <geometry>
+            <mesh>
+              <uri>model://kitchen_dining/meshes/kitchen_dining.dae</uri>
+              <!-- <uri>model://garching_kitchen</uri> -->
+              <scale>2 2 2</scale>
+            </mesh>
+          </geometry>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        
+      </link>
+      <static>true</static>
+    </model>
+    
+        <!-- Only one ROS interface plugin is required per world, as any other plugin can connect a Gazebo
+         topic to a ROS topic (or vise versa). -->
+    <plugin name="ros_interface_plugin" filename="librotors_gazebo_ros_interface_plugin.so"/>
+
+
+
+  </world>
+</sdf>

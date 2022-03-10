@@ -1,0 +1,123 @@
+<?xml version='1.0'?>
+<sdf version='1.7'>
+  <model name='my_walls_1'>
+    <pose>0.200511 0.689805 0 0 -0 0</pose>
+    <link name='Wall_5'>
+      <collision name='Wall_5_Collision'>
+        <geometry>
+          <box>
+            <size>9.79783 0.15 2.5</size>
+          </box>
+        </geometry>
+        <pose>0 0 1.25 0 -0 0</pose>
+      </collision>
+      <visual name='Wall_5_Visual'>
+        <pose>0 0 1.25 0 -0 0</pose>
+        <geometry>
+          <box>
+            <size>9.79783 0.15 2.5</size>
+          </box>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://my_walls_1/materials/scripts</uri>
+            <uri>model://my_walls_1/materials/textures</uri>
+            <name>vrc/my_asphalt</name>
+          </script>
+        </material>
+        <meta>
+          <layer>0</layer>
+        </meta>
+      </visual>
+      <pose>4.0845 -0.0133 0 0 -0 -1.56804</pose>
+    </link>
+    <link name='Wall_6'>
+      <collision name='Wall_6_Collision'>
+        <geometry>
+          <box>
+            <size>8.31904 0.15 2.5</size>
+          </box>
+        </geometry>
+        <pose>0 0 1.25 0 -0 0</pose>
+      </collision>
+      <visual name='Wall_6_Visual'>
+        <pose>0 0 1.25 0 -0 0</pose>
+        <geometry>
+          <box>
+            <size>8.31904 0.15 2.5</size>
+          </box>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://my_walls_1/materials/scripts</uri>
+            <uri>model://my_walls_1/materials/textures</uri>
+            <name>vrc/my_asphalt</name>
+          </script>
+        </material>
+        <meta>
+          <layer>0</layer>
+        </meta>
+      </visual>
+      <pose>0.0133 -4.8239 0 0 -0 3.13834</pose>
+    </link>
+    <link name='Wall_7'>
+      <collision name='Wall_7_Collision'>
+        <geometry>
+          <box>
+            <size>9.79783 0.15 2.5</size>
+          </box>
+        </geometry>
+        <pose>0 0 1.25 0 -0 0</pose>
+      </collision>
+      <visual name='Wall_7_Visual'>
+        <pose>0 0 1.25 0 -0 0</pose>
+        <geometry>
+          <box>
+            <size>9.79783 0.15 2.5</size>
+          </box>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://my_walls_1/materials/scripts</uri>
+            <uri>model://my_walls_1/materials/textures</uri>
+            <name>vrc/my_asphalt</name>
+          </script>
+        </material>
+        <meta>
+          <layer>0</layer>
+        </meta>
+      </visual>
+      <pose>-4.0845 0.0133 0 0 -0 1.57355</pose>
+    </link>
+    <link name='Wall_8'>
+      <collision name='Wall_8_Collision'>
+        <geometry>
+          <box>
+            <size>8.31904 0.15 2.5</size>
+          </box>
+        </geometry>
+        <pose>0 0 1.25 0 -0 0</pose>
+      </collision>
+      <visual name='Wall_8_Visual'>
+        <pose>0 0 1.25 0 -0 0</pose>
+        <geometry>
+          <box>
+            <size>8.31904 0.15 2.5</size>
+          </box>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://my_walls_1/materials/scripts</uri>
+            <uri>model://my_walls_1/materials/textures</uri>
+            <name>vrc/my_asphalt</name>
+          </script>
+        </material>
+        <meta>
+          <layer>0</layer>
+        </meta>
+      </visual>
+      <pose>-0.0133 4.8239 0 0 -0 -0.003256</pose>
+    </link>
+    <static>1</static>
+  </model>
+</sdf>

@@ -1,0 +1,366 @@
+<?xml version="1.0" ?>
+<sdf version="1.4">
+  <world name="default">
+	 <scene>
+	    <shadows>0</shadows>
+  </scene>
+    <physics type="ode">
+      <gravity>0 0 -9.81</gravity>
+      <ode>
+        <solver>
+          <type>quick</type>
+          <iters>20</iters>
+          <sor>1.0</sor>
+        </solver>
+        <constraints>
+          <cfm>0.0</cfm>
+          <erp>0.2</erp>
+          <contact_max_correcting_vel>100.0</contact_max_correcting_vel>
+          <contact_surface_layer>0.0</contact_surface_layer>
+        </constraints>
+      </ode>
+      <real_time_update_rate>1000</real_time_update_rate>
+      <max_step_size>0.001</max_step_size>
+    </physics>
+    <!-- A global light source -->
+    <include>
+      <uri>model://sun</uri>
+    </include>
+    <!-- A ground plane -->
+    <include>
+      <uri>model://ground_plane</uri>
+    </include>
+	
+
+    <include>
+      <uri>model://floor</uri>
+			<name>floor</name>
+			<pose>10 0 0 0 0 0 </pose>
+    </include>
+
+	
+
+		<include>
+      <uri>model://w1</uri>
+			<name>w1_bottom</name>
+      <pose>-10 0.0 0.0 0 0.0 -1.57</pose>
+    </include>
+
+
+		<include>
+      <uri>model://w1</uri>
+			<name>w1_left</name>
+      <pose>10 20 0.0 0 0.0 0.0</pose>
+    </include>
+
+
+		<include>
+      <uri>model://w1</uri>
+			<name>w1_top</name>
+      <pose>30 0.0 0.0 0 0.0 -1.57</pose>
+    </include>
+
+
+		<include>
+      <uri>model://w1</uri>
+			<name>w1_right</name>
+      <pose>10 -20 0.0 0 0.0 0.0</pose>
+    </include>
+		
+		<include>
+      <uri>model://w3</uri>
+			<name>w3_no_room_1</name>
+      <pose>-6 12.1 0.0 0 0.0 0.0</pose>
+    </include>
+
+
+		<include>
+      <uri>model://w3</uri>
+			<name>w3_no_room_2</name>
+      <pose>-1.9 16 0.0 0 0.0 1.57</pose>
+    </include>
+		
+		<include>
+      <uri>model://w2</uri>
+			<name>w3_room_1_1</name>
+      <pose>-1.9 10 0.0 0 0.0 1.57</pose>
+    </include>
+		
+      <!-- MIO WALL -->
+		<include>
+      <uri>model://w2</uri>
+			<name>w3_room_1_2</name>
+      <pose>0 -2 0.0 0 0.0 0.0</pose>
+    </include>
+		
+
+	<include>
+      <uri>model://w2</uri>
+			<name>w3_room_1_3</name>
+      <pose>6.5 8.1 0.0 0 0.0 0.0</pose>
+    </include>
+		
+		<include>
+      <uri>model://w4</uri>
+			<name>w4_room_1_3</name>
+      <pose>8.1 14 0.0 0 0.0 1.57</pose>
+    </include>
+		
+
+		<include>
+      <uri>model://w2</uri>
+			<name>w4_room_2_1</name>
+      <pose>10.17 8.11 0.0 0 0.0 0.0</pose>
+    </include>
+		
+		<include>
+      <uri>model://w2</uri>
+			<name>w4_room_2_2</name>
+      <pose>14.17 8.11 0.0 0 0.0 0.0</pose>
+    </include>
+		
+		<include>
+      <uri>model://w4</uri>
+			<name>w4_room_2_3</name>
+      <pose>19.4 14 0.0 0 0.0 1.57</pose>
+    </include>
+
+		<include>
+      <uri>model://w2</uri>
+			<name>w4_room_3_1</name>
+      <pose>21.4 8.11 0.0 0 0.0 0.0</pose>
+    </include>
+
+		<include>
+      <uri>model://w2</uri>
+			<name>w4_room_3_2</name>
+      <pose>27.9 8.11 0.0 0 0.0 0.0</pose>
+    </include>
+
+		<include>
+      <uri>model://w4</uri>
+			<name>w4_warehouse_1</name>
+      <pose>7.2 -13.9 0.0 0 0.0 1.57</pose>
+    </include>
+
+		<include>
+      <uri>model://w4</uri>
+			<name>w4_warehouse_2</name>
+      <pose>13.14 -1.0 0.0 0 0.0 0.0</pose>
+    </include>
+
+		<include>
+      <uri>model://w3</uri>
+			<name>w4_warehouse_3</name>
+      <pose>25.9 -1.0 0.0 0 0.0 0.0</pose>
+    </include>
+
+		<include>
+      <uri>model://w2</uri>
+			<name>w4_warehouse_4</name>
+      <pose>7.24 -3.1 0.0 0 0.0 1.57</pose>
+    </include>
+
+     <!-- MIO QR_CODE -->
+		<include>
+      <uri>model://id1</uri>
+			<name>id1</name>
+      <pose>0.0 -1.9 0.5 -1.57 0.0 0.0</pose>
+    </include>
+
+		<include>
+      <uri>model://id2</uri>
+			<name>id2</name>
+      <pose>15.2 7.9 1.2 -1.57 0.0 3.14</pose>
+    </include>
+
+		<include>
+      <uri>model://id3</uri>
+			<name>id3</name>
+      <pose>22.7 7.9 1.2 -1.57 0.0 3.14</pose>
+    </include>
+
+		<include>
+      <uri>model://id4</uri>
+			<name>id4_1</name>
+      <pose>7 -4.5 1.2 -1.57 0.0 1.57</pose>
+    </include>
+
+		<include>
+      <uri>model://id4</uri>
+			<name>id4_2</name>
+      <pose>22.5 -0.87 1.2 -1.57 0.0 0.0</pose>
+    </include>
+
+
+		<include>
+      <uri>model://id5</uri>
+			<name>food_id</name>
+      <pose>29.8 -7.7 1.2 -1.57 0.0 1.57</pose>
+    </include>
+
+		<include>
+      <uri>model://id6</uri>
+			<name>medicine_id</name>
+      <pose>22.5 -19.87 1.2 -1.57 0.0 0.0</pose>
+    </include>
+
+		<include>
+      <uri>model://id7</uri>
+			<name>release_1</name>
+      <pose>24 19.8 1.2 -1.57 0.0 -3.14</pose>
+    </include>
+
+		<include>
+      <uri>model://id7</uri>
+			<name>release_2</name>
+      <pose>13 19.8 1.2 -1.57 0.0 -3.14</pose>
+    </include>
+
+		<include>
+      <uri>model://id7</uri>
+			<name>release_3</name>
+      <pose>3.14 19.8 1.2 -1.57 0.0 -3.14</pose>
+    </include>
+
+		<include>
+      <uri>model://food</uri>
+			<name>food_1</name>
+      <pose>29.4 -6 0.1 0.0</pose>
+    </include>
+
+		<include>
+      <uri>model://food</uri>
+			<name>food_2</name>
+      <pose>29.4 -6.3 0.1 0.0</pose>
+    </include>
+
+		<include>
+      <uri>model://food</uri>
+			<name>food_3</name>
+      <pose>29.4 -6.6 0.1 0.0</pose>
+    </include>
+
+		<include>
+      <uri>model://food</uri>
+			<name>food_4</name>
+      <pose>29.4 -6.9.1 0.0</pose>
+    </include>
+
+		<include>
+      <uri>model://food</uri>
+			<name>food_5</name>
+      <pose>29.4 -7.2 0.1 0.0</pose>
+    </include>
+
+
+		<include>
+      <uri>model://food</uri>
+			<name>food_6</name>
+      <pose>29.4 -7.5 0.1 0.0</pose>
+    </include>
+
+
+		<include>
+      <uri>model://food</uri>
+			<name>food_7</name>
+      <pose>29.4 -7.8 0.1 0.0</pose>
+    </include>
+
+
+		<include>
+      <uri>model://food</uri>
+			<name>food_8</name>
+      <pose>29.4 -8.1 0.1 0.0</pose>
+    </include>
+
+
+		<include>
+      <uri>model://food</uri>
+			<name>food_9</name>
+      <pose>29.4 -8.4 0.1 0.0</pose>
+    </include>
+
+	<include>
+      <uri>model://food</uri>
+			<name>food_10</name>
+      <pose>29.4 -8.7 0.1 0.0</pose>
+    </include>
+
+
+		<include>
+      <uri>model://medicine</uri>
+			<name>med_1</name>
+      <pose>23.6 -18.8 0.1 0.0</pose>
+    </include>
+
+		<include>
+      <uri>model://medicine</uri>
+			<name>med_2</name>
+      <pose>23.3 -18.8 0.1 0.0</pose>
+    </include>
+
+		<include>
+      <uri>model://medicine</uri>
+			<name>med_3</name>
+      <pose>23 -18.8 0.1 0.0</pose>
+    </include>
+
+		<include>
+      <uri>model://medicine</uri>
+			<name>med_4</name>
+      <pose>22.7 -18.8 0.1 0.0</pose>
+    </include>
+
+
+		<include>
+      <uri>model://medicine</uri>
+			<name>med_5</name>
+      <pose>22.4 -18.8 0.1 0.0</pose>
+    </include>
+
+		<include>
+      <uri>model://medicine</uri>
+			<name>med_5</name>
+      <pose>22.1 -18.8 0.1 0.0</pose>
+    </include>
+
+
+		<include>
+      <uri>model://medicine</uri>
+			<name>med_6</name>
+      <pose>21.8 -18.8 0.1 0.0</pose>
+    </include>
+
+
+		<include>
+      <uri>model://medicine</uri>
+			<name>med_7</name>
+      <pose>21.5 -18.8 0.1 0.0</pose>
+    </include>
+
+
+		<include>
+      <uri>model://medicine</uri>
+			<name>med_8</name>
+      <pose>21.2 -18.8 0.1 0.0</pose>
+    </include>
+
+		<include>
+      <uri>model://medicine</uri>
+			<name>med_9</name>
+      <pose>20.9 -18.8 0.1 0.0</pose>
+    </include>
+
+		<include>
+      <uri>model://medicine</uri>
+			<name>med_10</name>
+      <pose>20.6 -18.8 0.1 0.0</pose>
+    </include>
+
+
+
+
+
+  </world>
+</sdf>

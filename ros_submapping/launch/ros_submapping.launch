@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+
+<launch>
+
+<!-- launch file to kickstart estimation, mapping, navigation -->
+
+<!-- CONFIGURATION  -->
+  
+  <arg name="config_okvis" value="$(find ros_submapping)/okvis2/config/config_visensor_Tommaso.yaml" /> <!-- configuration file -->
+  <arg name="slam" default="true"/> <!-- to launch slam or simple example -->
+  <arg name="config_s8" value="$(find ros_submapping)/okvis2/config/config_visensor_depth_Tommaso.yaml" /> <!-- configuration file -->
+  <arg name="rviz" default="true"/>
+
+  <group ns="submapping">
+    
+    <node name="main" pkg="ros_submapping" type="main" args="$(arg config_okvis) $(arg slam) $(arg config_s8)" output="screen" /> <!-- launch-prefix="xterm -e gdb - - args" -->
+    
+  </group>
+  
+  <group if="$(arg rviz)">
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find rviz_rotors)/rviz/config_1.rviz" output="screen" launch-prefix="xterm -e"/>
+  </group>
+
+</launch>

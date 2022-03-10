@@ -149,13 +149,14 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
   viParametersReader.getParameters(parameters);
    
   // store output stuff (est trajectory, meshes computed by s8, dbow vocab)
-  // everything is in /devel/lib/rotors_gazebo
-  boost::filesystem::path executable(argv0);
-  std::string trajectoryDir = executable.remove_filename().string() + "/in_out";
-  // now filename is removed from executable path
-  std::string meshesDir = executable.string() + "/in_out" + "/meshes";
-  publisher.setMeshesPath(meshesDir); // tell publisher where submaps are
-  std::string dBowVocDir = executable.string() + "/in_out";
+  // everything should be in a folder named in_out in your ws
+  boost::filesystem::path package(argv2);
+  package.remove_filename().remove_filename(); // now path is your workspace
+
+  std::string trajectoryDir = package.string() + "/in_out";
+  std::string meshesDir = package.string() + "/in_out" + "/meshes";
+  publisher.setMeshesPath(meshesDir); // tell publisher where submap meshes are
+  std::string dBowVocDir = package.string() + "/in_out";
 
 
   // =============== DELETE OLD MESHES ===============

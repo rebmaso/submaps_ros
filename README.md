@@ -10,7 +10,7 @@ ompl, pcl, stuff that okvis & se need, ...
 
 Things you may need to tune:
 
-queue sizes inside supereightinterface & threadedslam (if youre using a slow setup, this gives you more time before everything crashes or gets stuck), change config files (stereo + depth cam) according to your setup, change scaling of depth images inside supereightinterface (e.g if you work with tum dataset, must scale by 5000 pixel values), depending on how slow your computer is you should change the gazebo simtime rate in the world file youre using.
+queue sizes inside supereightinterface & threadedslam (if youre using a slow setup, this gives you more time before everything crashes or gets stuck), change config files (stereo + depth cam) according to your setup, change scaling of depth images inside supereightinterface (e.g if you work with tum dataset, must scale by 5000 pixel values), depending on how slow your computer is you should change the gazebo simtime rate in the world file youre using. must change imu rate in supereightinterface according to your sensor setup
 
 Remember to:
 

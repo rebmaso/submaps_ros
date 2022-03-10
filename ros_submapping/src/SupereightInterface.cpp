@@ -174,7 +174,7 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
 
     // Check timestamp. If greater than final timestamp, continue;
     const double imuDt =
-        2 * 1e-3; // ToDo -> set this based on the actual IMU rate
+        5 * 1e-3; // ToDo -> set this based on the actual IMU rate
     if (imuMeasurement.timeStamp > finalTimestamp + okvis::Duration(imuDt)) {
       break;
     }
@@ -508,9 +508,9 @@ bool SupereightInterface::detectCollision(const ompl::base::State *state)
   Eigen::Vector4d r(pos->values[0],pos->values[1],pos->values[2],1);
 
   // check occ inside a sphere around the drone 
-  // for now its really sparse 
+  // for now its very sparse 
   // lowest res is 1 voxel = 0.2m
-  const float rad = 0.3; // radius of the sphere
+  const float rad = 0.1; // radius of the sphere
 
   for (float z = -rad; z <= rad; z += rad/2)
   {

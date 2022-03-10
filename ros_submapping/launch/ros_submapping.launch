@@ -6,9 +6,9 @@
 
 <!-- CONFIGURATION  -->
   
-  <arg name="config_okvis" value="$(find ros_submapping)/okvis2/config/config_visensor_Tommaso.yaml" /> <!-- configuration file -->
+  <arg name="config_okvis" value="$(find ros_submapping)/okvis2/config/config_uhumans_Tommaso.yaml" /> <!-- configuration file -->
   <arg name="package" value="$(find ros_submapping)"/> <!-- to launch slam or simple example -->
-  <arg name="config_s8" value="$(find ros_submapping)/okvis2/config/config_visensor_depth_Tommaso.yaml" /> <!-- configuration file -->
+  <arg name="config_s8" value="$(find ros_submapping)/okvis2/config/config_uhumans_depth_Tommaso.yaml" /> <!-- configuration file -->
   <arg name="rviz" default="true"/>
 
   <group ns="submapping">

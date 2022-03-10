@@ -125,7 +125,7 @@ public:
 };
 
 RosInterfacer::RosInterfacer(char** argv) : nh("ros_interface") , publisher(nh), it(nh),
-image0_sub(nh, "/firefly/vi_sensor/left/image_raw", 1000), image1_sub(nh, "/firefly/vi_sensor/right/image_raw", 1000),
+image0_sub(nh, "/tesse/left_cam/mono/image_raw", 1000), image1_sub(nh, "/tesse/right_cam/mono/image_raw", 1000),
 sync(MySyncPolicy(1000), image0_sub, image1_sub)
 {
 
@@ -261,9 +261,9 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
   // rostopic pub -1 /navgoal geometry_msgs/Pose  '{position:  {x: 0.0, y: 0.0, z: 1.0}, orientation: {x: 0.0,y: 0.0,z: 0.0,w: 1.0}}'
   navgoal_sub = nh.subscribe("/navgoal", 0, &RosInterfacer::navGoalCallback, this);
 
-  imu_sub = nh.subscribe("/firefly/vi_sensor/imu", 10000, &RosInterfacer::imuCallback, this);
+  imu_sub = nh.subscribe("/tesse/imu/clean/imu", 10000, &RosInterfacer::imuCallback, this);
 
-  depth_sub = it.subscribe("/firefly/vi_sensor/camera_depth/depth/disparity", 1000, &RosInterfacer::depthCallback, this);
+  depth_sub = it.subscribe("/tesse/depth_cam/mono/image_raw", 1000, &RosInterfacer::depthCallback, this);
 
 
 }

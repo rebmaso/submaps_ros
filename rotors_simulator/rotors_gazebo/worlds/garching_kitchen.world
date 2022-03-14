@@ -84,27 +84,27 @@
 
     <model name="garching_kitchen">
       <link name="garching_kitchen_link">
-        <pose>4 2 -0.48 0 0 0</pose>
+        <pose>4 2 -0.38 0 0 0</pose>
 
         <!-- EXPENSIVE COLLISION: THE WHOLE MESH  -->
-        <!-- <collision name="garching_kitchen_collision">
+        <collision name="garching_kitchen_collision">
           <geometry>
             <mesh>
               <uri>model://garching_kitchen/temp/garching_kitchen.dae</uri>
               <scale>2 2 2</scale>
             </mesh>
           </geometry>
-        </collision> -->
+        </collision>
         
         <!-- EASY COLLISION: JUST GROUND PLANE  -->
-        <collision name="garching_kitchen_collision">
+        <!-- <collision name="garching_kitchen_collision">
           <geometry>
             <plane>
             <normal>0 0 6</normal>
             <size>20.0 20.0</size>
             </plane>
           </geometry>
-        </collision>
+        </collision> -->
 
         <visual name="garching_kitchen">
           <geometry>
@@ -141,7 +141,8 @@
     <include>
       <uri>model://rhino</uri>
 			<name>rhino</name>
-      <pose>4 1.5 0 0 0 1.57</pose>
+      <pose>4 1.5 0.013757 0 0 1.57</pose>
+      <static>1</static>
     </include>
     
         <!-- Only one ROS interface plugin is required per world, as any other plugin can connect a Gazebo

@@ -510,7 +510,7 @@ bool SupereightInterface::detectCollision(const ompl::base::State *state)
   // check occ inside a sphere around the drone 
   // for now its really sparse 
   // lowest res is 1 voxel = 0.2m
-  const float rad = 0.3; // radius of the sphere
+  const float rad = 0.5; // radius of the sphere
 
   for (float z = -rad; z <= rad; z += rad/2)
   {

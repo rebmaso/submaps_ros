@@ -230,7 +230,7 @@ void Publisher::setPose(const okvis::kinematics::Transformation& T_WS)
     T = parameters_.publishing.T_Wc_W * T_WS * parameters_.imu.T_BS.inverse();
   }*/
 
-  poseMsg_.header.frame_id = "world";
+  poseMsg_.header.frame_id = "odom";
   poseMsg_.header.stamp = _t;
   if ((ros::Time::now() - _t).toSec() > 10.0)
     poseMsg_.header.stamp = ros::Time::now();
@@ -309,21 +309,21 @@ void Publisher::setOdometry(const okvis::kinematics::Transformation& T_WS,
   Eigen::Vector3d v_W_ofFrame;  // velocity in W-system. v_S_in_W or v_B_in_W
 
   //if (parameters_.publishing.trackedBodyFrame == FrameName::S) {
-    odometryMsg_.header.frame_id = "world";
+    odometryMsg_.header.frame_id = "odom";
     //T = parameters_.publishing.T_Wc_W * T_WS;
     T = T_WS;
     t_W_ofFrame.setZero(); // r_SS_in_W
     //v_W_ofFrame = parameters_.publishing.T_Wc_W.C()*speedAndBiases.head<3>();  // world-centric speedAndBiases.head<3>()
     v_W_ofFrame = speedAndBiases.head<3>();  // world-centric speedAndBiases.head<3>()
   /*} else if (parameters_.publishing.trackedBodyFrame == FrameName::B) {
-    odometryMsg_.header.frame_id = "world";
+    odometryMsg_.header.frame_id = "odom";
     T = parameters_.publishing.T_Wc_W * T_WS * parameters_.imu.T_BS.inverse();
     t_W_ofFrame = (parameters_.publishing.T_Wc_W * T_WS * parameters_.imu.T_BS.inverse()).r() - (parameters_.publishing.T_Wc_W * T_WS).r();  // r_BS_in_W
     v_W_ofFrame = parameters_.publishing.T_Wc_W.C()*speedAndBiases.head<3>() + omega_W.cross(t_W_ofFrame);  // world-centric speedAndBiases.head<3>()
   } else {
     LOG(ERROR) <<
         "Pose frame does not exist for publishing. Choose 'S' or 'B'.";
-    odometryMsg_.header.frame_id = "world";
+    odometryMsg_.header.frame_id = "odom";
     T = parameters_.publishing.T_Wc_W * T_WS;
     t_W_ofFrame.setZero(); // r_SS_in_W
     v_W_ofFrame = parameters_.publishing.T_Wc_W.C()*speedAndBiases.head<3>();  // world-centric speedAndBiases.head<3>()
@@ -357,7 +357,7 @@ void Publisher::setOdometry(const okvis::kinematics::Transformation& T_WS,
   } else if (parameters_.publishing.velocitiesFrame == FrameName::Wc) {
     C_v.setIdentity();
     C_omega = parameters_.publishing.T_Wc_W.C() * T_WS.C();
-    odometryMsg_.child_frame_id = "world";
+    odometryMsg_.child_frame_id = "odom";
   } else {
     LOG(ERROR) <<
         "Speeds frame does not exist for publishing. Choose 'S', 'B', or 'Wc'.";
@@ -419,7 +419,7 @@ void Publisher::setPoints(const okvis::MapPointVector& pointsMatched,
         * (std::min(0.1f, (float)pointsMatched[i].quality)
             / 0.1f);
   }
-  pointsMatched_.header.frame_id = "world";
+  pointsMatched_.header.frame_id = "odom";
 
 #if PCL_VERSION >= PCL_VERSION_CALC(1,7,0)
   std_msgs::Header header;
@@ -451,7 +451,7 @@ void Publisher::setPoints(const okvis::MapPointVector& pointsMatched,
         * (std::min(0.1f, (float)pointsUnmatched[i].quality)
             / 0.1f);
   }
-  pointsUnmatched_.header.frame_id = "world";
+  pointsUnmatched_.header.frame_id = "odom";
 
 #if PCL_VERSION >= PCL_VERSION_CALC(1,7,0)
   pointsUnmatched_.header.stamp = pcl_conversions::toPCL(header).stamp;
@@ -488,7 +488,7 @@ void Publisher::setPoints(const okvis::MapPointVector& pointsMatched,
     //_omfile << point[0] << " " << point[1] << " " << point[2] << ";" <<std::endl;
 
   }
-  pointsTransferred_.header.frame_id = "world";
+  pointsTransferred_.header.frame_id = "odom";
   pointsTransferred_.header.seq = ctr2_++;
 
 #if PCL_VERSION >= PCL_VERSION_CALC(1,7,0)
@@ -660,7 +660,7 @@ void Publisher::publishKeyframesAsCallback(const State &latestState, const Track
   visualization_msgs::Marker KFmsg_;
 
   // header
-  KFmsg_.header.frame_id = "world";
+  KFmsg_.header.frame_id = "odom";
   // time conversion from okvis
   ros::Time KFtimestamp = ros::Time(keyframeStates[i].timestamp.sec, keyframeStates[i].timestamp.nsec);
   KFmsg_.header.stamp = KFtimestamp;
@@ -769,7 +769,7 @@ void Publisher::publishSubmapMeshesAsCallback(std::unordered_map<uint64_t, Trans
       visualization_msgs::Marker submapmsg_;
       // load marker msg:
       // header
-      submapmsg_.header.frame_id = "world";
+      submapmsg_.header.frame_id = "odom";
       submapmsg_.header.stamp = ros::Time::now();
       submapmsg_.ns = "submap_ns";
       submapmsg_.id = stoi(paths_stl[i].stem().string()); // id of the keyframe (filename wo extension)
@@ -818,7 +818,7 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
 
   std_msgs::Header header;
   header.stamp = ros::Time::now();
-  header.frame_id = "world";
+  header.frame_id = "odom";
 
   // Iterate over the octree, creating a different CUBE_LIST marker for each
   // volume size and state.
@@ -910,7 +910,7 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
                   }
                   // Append the current voxel.
                   const Eigen::Vector4d p_mp(node_centre_meter[0],node_centre_meter[1],node_centre_meter[2],1); // p wrt map (homogenous)
-                  const Eigen::Matrix4d T_wm = (*it.second)->getTWM().cast<double>(); // map wrt "world", which is the kf
+                  const Eigen::Matrix4d T_wm = (*it.second)->getTWM().cast<double>(); // map wrt "odom", which is the kf
                   const Eigen::Matrix4d T_wf = submapPoseLookup[it.first].T(); // kf wrt world
                   const Eigen::Vector4d p_eigen = T_wf*T_wm*p_mp; // p wrt world (homogenous)
                   
@@ -991,7 +991,7 @@ void Publisher::publishPathAsCallback(const ompl::geometric::PathGeometric & pat
 
   nav_msgs::Path  msg;
   msg.header.stamp = ros::Time::now(); // se if path has timestamps
-  msg.header.frame_id = "world";
+  msg.header.frame_id = "odom";
 
   for (std::size_t idx = 0; idx <  path.getStateCount (); idx++)
   {
@@ -1042,7 +1042,7 @@ Eigen::Vector3d v ;
 
 
   markerPoseMsg_.child_frame_id = "marker";
-  markerPoseMsg_.header.frame_id = "world";
+  markerPoseMsg_.header.frame_id = "odom";
   markerPoseMsg_.header.stamp = _t;
 
   // fill orientation
@@ -1065,7 +1065,7 @@ Eigen::Vector3d v ;
   pubTf_.sendTransform(markerPoseMsg_);
 
   // also publish odometry
-  markerOdometryMsg_.header.frame_id = "world";
+  markerOdometryMsg_.header.frame_id = "odom";
   markerOdometryMsg_.header.stamp = _t;
 
   // fill orientation
@@ -1150,7 +1150,7 @@ void Publisher::setPath(const okvis::kinematics::Transformation &T_WS)
   }
   geometry_msgs::PoseStamped pose;
   pose.header.stamp = _t;
-  pose.header.frame_id = "world";
+  pose.header.frame_id = "odom";
   //okvis::kinematics::Transformation T = parameters_.publishing.T_Wc_W*T_WS;
   okvis::kinematics::Transformation T = T_WS;
 
@@ -1177,7 +1177,7 @@ void Publisher::setPath(const okvis::kinematics::Transformation &T_WS)
   pose.pose.orientation.w = q.w();
 
   path_.header.stamp = _t;
-  path_.header.frame_id = "world";
+  path_.header.frame_id = "odom";
   path_.poses.push_back(pose);
 }
 

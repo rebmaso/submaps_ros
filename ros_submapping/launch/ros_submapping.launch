@@ -21,4 +21,7 @@
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find rviz_rotors)/rviz/config_1.rviz" output="screen" launch-prefix="xterm -e"/>
   </group>
 
+  <!-- starting location. to make estimates consistent with ground truth -->
+  <node pkg="tf" type="static_transform_publisher" name="link1_broadcaster" args="-16.04391 -2.61944 2.461393 0 0 -0.04641965028571606 0.998922027020804 world odom 100" />
+
 </launch>

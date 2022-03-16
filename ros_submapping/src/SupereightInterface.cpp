@@ -265,17 +265,18 @@ void SupereightInterface::processSupereightFrames() {
 
       if(loop_closure_redo_hashing) {
 
+        std::cout << " Loop closure: re-assigning spatial hash map \n";
+
         // if we have a new keyframe & there's been a place recognition in the past frames --> reassign all locations
-        // TODO deallocate all previous positions
-        // TODO only do this for the frames that were involved in the loop. (check new okvis commit)
-        // do hash assignment for each kf (TODO deassign earlier locations)
+        // TODO reallocate previous positions: only do this for the frames that were involved in the loop. (check new okvis commit)
+ 
 
         loop_closure_redo_hashing = false; // lower the flag
     
         for (auto &keyframeData : supereightFrame.keyFrameDataVec) {
         
           const auto id = keyframeData.id;
-          const auto T_WM = keyframeData.T_WM;
+          
           
           // allocate a box in the frustum of the kf, for each kf.
           // this hash table is then looked up for collision checking.
@@ -283,15 +284,31 @@ void SupereightInterface::processSupereightFrames() {
           // its crappy but faster. and also not an error, bc we can only overestimate 
           // each submap's dimensions
 
+          // first, deallocate the id of current kf from its previous boxes
+
+          // for each pos in hash_table_inverse(id)
+          // look up the pose in hash_table(pos)
+          // remove the id from that 
+
+          // // remove every submaps from the hash tables
+          // for (auto &pos : hashTableInverse_[id]) // iterate over boxes for each keyframe
+          // {
+          //   hashTable_[pos].erase(id); // remove id from box
+          // }
+          // // when done removing from regular hash table, remove id from inverse table
+          // hashTableInverse_.erase(id);
+
+          
+          const auto T_WM = keyframeData.T_WM;
           const Eigen::Matrix4d Tf = T_WM.T();
 
           // we do it this way even if it means possible floor values that are the same. but if we added +1
           // gaps could occur. takes a bit longer to allocate, but spare more time in submap query at planning time
-          for (float x = -1; x < 6; x+=0.5) // 0 6
+          for (float x = -5; x < 5; x+=0.5) // 0 6
           {
-            for (float y = -4; y < 4; y+=0.5) // -4 4
+            for (float y = -5; y < 5; y+=0.5) // -4 4
             {
-              for (float z = -4; z < 4; z+=0.5) // -4 4
+              for (float z = -5; z < 5; z+=0.5) // -4 4
               {
                 
                 // get offset value (this pos is in kf frame)
@@ -310,10 +327,14 @@ void SupereightInterface::processSupereightFrames() {
 
                 // add to hashtable 
                 hashTable_[pos_floor].insert(id);
-
+                
+                // add pos to the inverse hash table
+                hashTableInverse_[id].insert(pos_floor);
               }
             }
           }
+
+          
 
         }
       }
@@ -332,11 +353,11 @@ void SupereightInterface::processSupereightFrames() {
 
         const Eigen::Matrix4d Tf = T_WM.T();
 
-        for (float x = -1; x < 6; x+=0.5)
+        for (float x = -5; x < 5; x+=0.5)
         {
-          for (float y = -4; y < 4; y+=0.5)
+          for (float y = -5; y < 5; y+=0.5)
           {
-            for (float z = -4; z < 4; z+=0.5)
+            for (float z = -5; z < 5; z+=0.5)
             {
               
               // get offset value (this pos is in kf frame)
@@ -355,6 +376,9 @@ void SupereightInterface::processSupereightFrames() {
 
               // add to hashtable 
               hashTable_[pos_floor].insert(id);
+
+              // add pos to the inverse hash table
+              hashTableInverse_[id].insert(pos_floor);
 
             }
           }

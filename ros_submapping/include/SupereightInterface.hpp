@@ -329,6 +329,8 @@ private:
 
   std::unordered_map<Eigen::Vector3i, std::unordered_set<int>, SpatialHasher> hashTable_; // a hash table for quick submap access (box coord, list of indexes)
 
+  std::unordered_map<int, std::unordered_set<Eigen::Vector3i, SpatialHasher>> hashTableInverse_; // inverse access hash table (index, list of box coords)
+
   bool blocking_ = false;
   okvis::Time timeZero_;
 

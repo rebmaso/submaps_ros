@@ -111,7 +111,7 @@ public:
         dataConfig_(dataConfig), meshesPath_(meshesPath) {
 
     se::OccupancyMap<se::Res::Multi> map(mapConfig_, dataConfig_);
-    flag = true;
+    loop_closure_redo_hashing = false;
   };
 
   /**
@@ -336,7 +336,9 @@ private:
   submapMeshesCallback submapMeshesCallback_; // to visualize in Publisher
   submapCallback submapCallback_; // to visualize in Publisher
   replanCallback replanCallback_; // to trigger new plan()
-  bool flag; // buttare
+
+  // this flag is set when we get a loop closure frame, and lowered whenever we reassign submap hashes
+  bool loop_closure_redo_hashing;
 };
 
 #endif /* INCLUDE_SUPEREIGHTINTERFACE_HPP_ */

@@ -235,41 +235,13 @@ void SupereightInterface::processSupereightFrames() {
     // Proceed with supereight integration
     const auto start_time = std::chrono::high_resolution_clock::now();
 
-    // Update pose lookup --> each time a new seframe arrives, it contains updated info on all kf poses.
+    //  Update pose lookup --> each time a new seframe arrives, it contains updated info on all kf poses.
     //  we update here all poses
+
     for (auto &keyframeData : supereightFrame.keyFrameDataVec) {
     
       const auto id = keyframeData.id;
       const auto T_WM = keyframeData.T_WM;
-      
-      Eigen::Vector3i pos_floor; //  floor of kf position
-      for (int i = 0 ; i < 3 ; i++)
-      {
-        pos_floor(i) = (int)(floor(T_WM.r()(i)));
-      }
-
-      // update hash table: push map id in the boxes inside radius (avoid adding same id 2 times in a given box)
-      
-      // simple version: real map is a 5x5x5 box in front of the camera. 
-      // lets assign a 10x10x10 set of 1x1x1 boxes around the kf so it's simple
-      // will obviously exceed real submap boundaries but theres no problem w that.
-      // instead, it increases efficiency for huge maps
-      // side note: -0.5 and 0.5 both map in the 0 box coordinate. 
-      // this is not cool, but also not a problem (its not a real bug, planning works fine)
-
-      const int side = 5; // TODO get this from the map config?
-      for (int x = -side; x < side; x++)
-      {
-        for (int y = -side; y < side; y++)
-        {
-          for (int z = -side; z < side; z++)
-          {
-            // this statement is executed 1000 times... maybe decrease box radius
-            const Eigen::Vector3i offset(x,y,z);
-            hashTable_[pos_floor + offset].insert(id); // uniquely add id
-          }
-        }
-      }
       
       // Check If Id exists.
       if (submapPoseLookup_.count(id)) {
@@ -285,9 +257,107 @@ void SupereightInterface::processSupereightFrames() {
     // this is the latest "active" keyframe id
     static uint64_t prevKeyframeId = supereightFrame.keyframeId;
 
-    // ---------------------------- CREATE NEW MAP ---------------------------
+    // =========== CREATE NEW MAP ===========
+
+    // if we have a new keyframe --> create new map (and save previous kf map)
 
     if (supereightFrame.keyframeId != prevKeyframeId || submaps_.empty()) { 
+
+      if(loop_closure_redo_hashing) {
+
+        // if we have a new keyframe & there's been a place recognition in the past frames --> reassign all locations
+        // TODO deallocate all previous positions
+        // TODO only do this for the frames that were involved in the loop. (check new okvis commit)
+        // do hash assignment for each kf (TODO deassign earlier locations)
+
+        loop_closure_redo_hashing = false; // lower the flag
+    
+        for (auto &keyframeData : supereightFrame.keyFrameDataVec) {
+        
+          const auto id = keyframeData.id;
+          const auto T_WM = keyframeData.T_WM;
+          
+          // allocate a box in the frustum of the kf, for each kf.
+          // this hash table is then looked up for collision checking.
+          // even if the kfs move around, we do not deallocate ids from boxes.
+          // its crappy but faster. and also not an error, bc we can only overestimate 
+          // each submap's dimensions
+
+          const Eigen::Matrix4d Tf = T_WM.T();
+
+          for (int x = 0; x < 6; x++)
+          {
+            for (int y = -4; y < 4; y++)
+            {
+              for (int z = -4; z < 4; z++)
+              {
+                
+                // get offset value (this pos is in kf frame)
+                Eigen::Vector4d pos_kf(x,y,z,1);
+
+                // transform into world frame
+                Eigen::Vector4d pos_world;
+                pos_world = Tf * pos_kf;
+
+                // floor transformed value
+                Eigen::Vector3i pos_floor;
+                for (int i = 0 ; i < 3 ; i++)
+                {
+                  pos_floor(i) = (int)(floor(pos_world(i)));
+                }
+
+                // add to hashtable 
+                hashTable_[pos_floor].insert(id);
+
+              }
+            }
+          }
+
+        }
+      }
+      else { // if not a loopclosure frame: do spatial hash allocation just for the newest kf
+        
+        auto keyframeData = supereightFrame.keyFrameDataVec.begin();
+
+        const auto id = keyframeData->id;
+        const auto T_WM = keyframeData->T_WM;
+        
+        // allocate a box in the frustum of the kf, for each kf.
+        // this hash table is then looked up for collision checking.
+        // even if the kfs move around, we do not deallocate ids from boxes.
+        // its crappy but faster. and also not an error, bc we can only overestimate 
+        // each submap's dimensions
+
+        const Eigen::Matrix4d Tf = T_WM.T();
+
+        for (int x = 0; x < 6; x++)
+        {
+          for (int y = -4; y < 4; y++)
+          {
+            for (int z = -4; z < 4; z++)
+            {
+              
+              // get offset value (this pos is in kf frame)
+              Eigen::Vector4d pos_kf(x,y,z,1);
+
+              // transform into world frame
+              Eigen::Vector4d pos_world;
+              pos_world = Tf * pos_kf;
+
+              // floor transformed value
+              Eigen::Vector3i pos_floor;
+              for (int i = 0 ; i < 3 ; i++)
+              {
+                pos_floor(i) = (int)(floor(pos_world(i)));
+              }
+
+              // add to hashtable 
+              hashTable_[pos_floor].insert(id);
+
+            }
+          }
+        }
+      }
 
       // Quick hack for Tomaso, save the finished map using its current pose.
       if (!submaps_.empty()) {
@@ -312,7 +382,6 @@ void SupereightInterface::processSupereightFrames() {
         // this should be the mesh tf wrt world (bc Twm should be T(sensor)(mesh))
         // Eigen::Matrix4d T_WM_mesh = T_WF.T() * T_WM;
         
-        // --------------- !!!!!!!!!!!!!!!!!!!!!! ------------------
         // since we only need to visualize them w markers. lets save them with identity pose (but w the right scale), and add the kf pose later
         Eigen::Matrix4d T_WM_mesh = T_WM;
 
@@ -321,7 +390,7 @@ void SupereightInterface::processSupereightFrames() {
         T_WM_mesh.topLeftCorner<3, 3>() =
             submaps_.back()->getRes() * T_WM_mesh.topLeftCorner<3, 3>();
 
-        // SAVE THE MESH (its name is the kf id) ADDING AN OFFSET OF TWM (THE KF POSE)
+        // SAVE THE MESH OF THE MAP WE JUST FINISHED INTEGRATING
         // std::cout << "(seinterface) saving mesh as ply... \n";
         submaps_.back()->saveMesh(meshFilename, T_WM_mesh.cast<float>()); 
                 
@@ -340,9 +409,9 @@ void SupereightInterface::processSupereightFrames() {
                                           std::prev(submaps_.end())));
     }
 
-    // -------------------------------------------------------------------
+    // =========== END CREATE NEW MAP ===========
 
-    // INTEGRATE IN CURRENT ("active") MAP
+    // INTEGRATE IN CURRENT ("active") MAP (can be the map we just created)
 
     // Prepare for next iteration
     prevKeyframeId = supereightFrame.keyframeId;
@@ -464,6 +533,8 @@ bool SupereightInterface::stateUpdateCallback(
     const bool result =
         stateUpdates_.PushBlockingIfFull(latestStateData, stateUpdateQueue);
     cvNewSensorMeasurements_.notify_one();
+    // if a place is recognised, we must reassign all submap hashes (we do so in processseframe)
+    if(latestTrackingState.recognisedPlace) loop_closure_redo_hashing = true; // raise the flag
     return result;
   } else {
     if (stateUpdates_.PushNonBlockingDroppingIfFull(latestStateData,

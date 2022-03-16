@@ -22,6 +22,10 @@ This project contains submodules. After you clone it, you should run this comman
 
 `` git submodule update --init --recursive ``
 
+Whenever you want to update the submodules:
+
+`` git submodule update --remote ``
+
 Source the ros setup:
 
 `` source /opt/ros/noetic/setup.bash ``

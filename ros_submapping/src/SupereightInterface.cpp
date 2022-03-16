@@ -285,11 +285,13 @@ void SupereightInterface::processSupereightFrames() {
 
           const Eigen::Matrix4d Tf = T_WM.T();
 
-          for (int x = 0; x < 6; x++)
+          // we do it this way even if it means possible floor values that are the same. but if we added +1
+          // gaps could occur. takes a bit longer to allocate, but spare more time in submap query at planning time
+          for (float x = -1; x < 6; x+=0.5) // 0 6
           {
-            for (int y = -4; y < 4; y++)
+            for (float y = -4; y < 4; y+=0.5) // -4 4
             {
-              for (int z = -4; z < 4; z++)
+              for (float z = -4; z < 4; z+=0.5) // -4 4
               {
                 
                 // get offset value (this pos is in kf frame)
@@ -330,11 +332,11 @@ void SupereightInterface::processSupereightFrames() {
 
         const Eigen::Matrix4d Tf = T_WM.T();
 
-        for (int x = 0; x < 6; x++)
+        for (float x = -1; x < 6; x+=0.5)
         {
-          for (int y = -4; y < 4; y++)
+          for (float y = -4; y < 4; y+=0.5)
           {
-            for (int z = -4; z < 4; z++)
+            for (float z = -4; z < 4; z+=0.5)
             {
               
               // get offset value (this pos is in kf frame)
@@ -367,32 +369,23 @@ void SupereightInterface::processSupereightFrames() {
         // Retrieve the respective KF pose from the lookup we just updated by reading seframes
         const auto T_WF = submapPoseLookup_[prevKeyframeId];
 
-        // Compute the tranformation needed in Supereight 2. We can use
-        // submaps_.back()->getTWM(). However this returns  a zero matrix in s8
-        // e9fa2e01e3124ae76896393450f21180fae76cf4. Let's instead get the
-        // transformation from the map config.
-        const Eigen::Matrix4d T_MW = mapConfig_.T_MW.cast<double>();
-        Eigen::Matrix4d T_WM = Eigen::Matrix4d::Identity();
-
-        // Compute the inverse manually....
-        T_WM.topLeftCorner<3, 3>() = T_MW.topLeftCorner<3, 3>().transpose();
-        T_WM.topRightCorner<3, 1>() = -T_MW.topLeftCorner<3, 3>().transpose() *
-                                      T_MW.topRightCorner<3, 1>();
-        
         // this should be the mesh tf wrt world (bc Twm should be T(sensor)(mesh))
         // Eigen::Matrix4d T_WM_mesh = T_WF.T() * T_WM;
         
-        // since we only need to visualize them w markers. lets save them with identity pose (but w the right scale), and add the kf pose later
-        Eigen::Matrix4d T_WM_mesh = T_WM;
+        // // since we only need to visualize them w markers. lets save them with identity pose (but w the right scale), and add the kf pose later
+
+        Eigen::Matrix4f T_WM_mesh = submaps_.back()->getTWM();
 
         // Apply the scale. Important -> this interface will change in the next
         // versions of supereight 2.0
-        T_WM_mesh.topLeftCorner<3, 3>() =
-            submaps_.back()->getRes() * T_WM_mesh.topLeftCorner<3, 3>();
+        //  T_WM_mesh.topLeftCorner<3, 3>() =
+        //      submaps_.back()->getRes() * T_WM_mesh.topLeftCorner<3, 3>();
 
         // SAVE THE MESH OF THE MAP WE JUST FINISHED INTEGRATING
         // std::cout << "(seinterface) saving mesh as ply... \n";
-        submaps_.back()->saveMesh(meshFilename, T_WM_mesh.cast<float>()); 
+        
+        // submaps_.back()->saveMesh(meshFilename, T_WM_mesh);
+        submaps_.back()->saveMesh(meshFilename);
                 
         // call submap visualizer & plan() (outside this class) each time we save a new map
         publishSubmaps(); 

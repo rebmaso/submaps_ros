@@ -48,6 +48,11 @@ Planner::Planner(const ob::StateValidityCheckerFn &svc) {
   ob::OptimizationObjectivePtr obj(new ob::PathLengthOptimizationObjective(ss->getSpaceInformation()));
 	obj->setCostToGoHeuristic(&ob::goalRegionCostToGo);
 
+  // (optional) if we want to benchmark the planner, lets take the first (prob. crappy) solution, with this hack
+  // if we dont set this, rrtstar will keep on looking for better solutions until it runs out of time
+  ob::Cost cost(100.0); // set super high cost treshold
+  obj->setCostThreshold(cost); // so planning stops as soon as a first solution is found
+
   // set Optimization objective
   ss->setOptimizationObjective(obj);
   

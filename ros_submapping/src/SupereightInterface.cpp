@@ -282,11 +282,11 @@ void SupereightInterface::processSupereightFrames() {
 
           // we do it this way even if it means possible floor values that are the same. but if we added +1
           // gaps could occur. takes a bit longer to allocate, but spare more time in submap query at planning time
-          for (float x = -5; x < 5; x+=0.5) // 0 6
+          for (float x = -1; x < 5; x+=0.5) // 0 6
           {
-            for (float y = -5; y < 5; y+=0.5) // -4 4
+            for (float y = -3; y < 3; y+=0.5) // -4 4
             {
-              for (float z = -5; z < 5; z+=0.5) // -4 4
+              for (float z = -3; z < 3; z+=0.5) // -4 4
               {
                 
                 // get offset value (this pos is in kf frame)
@@ -337,11 +337,11 @@ void SupereightInterface::processSupereightFrames() {
 
       const Eigen::Matrix4d Tf = T_WM.T();
 
-      for (float x = -5; x < 5; x+=0.5)
+      for (float x = -1; x < 5; x+=0.5)
       {
-        for (float y = -5; y < 5; y+=0.5)
+        for (float y = -3; y < 3; y+=0.5)
         {
-          for (float z = -5; z < 5; z+=0.5)
+          for (float z = -3; z < 3; z+=0.5)
           {
             
             // get offset value (this pos is in kf frame)

@@ -5,3 +5,6 @@
 [submodule "ros_submapping/supereight-2-srl"]
 	path = ros_submapping/supereight-2-srl
 	url = git@bitbucket.org:smartroboticslab/supereight-2-srl.git
+[submodule "rotors_simulator"]
+	path = rotors_simulator
+	url = https://github.com/trebeggiani/rotors_simulator.git

@@ -10,12 +10,12 @@ Planner::Planner(const ob::StateValidityCheckerFn &svc) {
   ob::RealVectorBounds bounds(3);
 
   // important: define here the box inside which you intend to plan
-  bounds.setLow(0,-6);
-  bounds.setHigh(0,10);
-  bounds.setLow(1,-4);
-  bounds.setHigh(1,8);
-  bounds.setLow(2,-1);
-  bounds.setHigh(2,7);
+  bounds.setLow(0,-1);
+  bounds.setHigh(0,25);
+  bounds.setLow(1,-5);
+  bounds.setHigh(1,4);
+  bounds.setLow(2,-4);
+  bounds.setHigh(2,4);
 
   // set the bounds you just chose
   space->as<ob::RealVectorStateSpace>()->setBounds(bounds);

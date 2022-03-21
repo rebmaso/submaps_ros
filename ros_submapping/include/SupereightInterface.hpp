@@ -304,6 +304,8 @@ private:
   std::thread dataPreparationThread_; ///< Thread running data preparation loop.
   SubmapList submaps_;                ///< List containing all the submaps
 
+  // To access maps. This is safe: the lookups only contain refs to maps that are done being integrated.
+  // No segfault risk.
   std::unordered_map<uint64_t, SubmapList::iterator> submapLookup_; // use this to access submaps (index,submap)
   std::unordered_map<uint64_t, Transformation> submapPoseLookup_; // use this to access submap poses (index,pose)
 

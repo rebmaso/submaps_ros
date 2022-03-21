@@ -407,6 +407,7 @@ void SupereightInterface::processSupereightFrames() {
       frame = 0;
 
       // Add the (keyframe Id, iterator) pair in the submapLookup_
+      // We save the map that is done being integrated. not the current one. so its safe to access it outside
       submapLookup_.insert(std::make_pair(supereightFrame.keyframeId,
                                           std::prev(submaps_.end())));
     }

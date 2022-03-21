@@ -22,6 +22,10 @@ This project contains submodules. After you clone it, you should run this comman
 
 `` git submodule update --init --recursive ``
 
+Whenever you want to update the submodules:
+
+`` git submodule update --remote ``
+
 Source the ros setup:
 
 `` source /opt/ros/noetic/setup.bash ``
@@ -47,7 +51,8 @@ Now create a folder named "in_out" in the top directory of your workspace and ad
 
 ## To run on a Gazebo simulation
 
-Spawn the drone and run the RotorS controller:
+Spawn the drone and run the RotorS controller (do this before you launch the processing pipeline! early sensor data are always crappy in Gazebo: best to discard the very first).
+You can find that this launch also publishes a fixed odom frame with the start location of the robot, so that we can visualize state estimate and maps correctly.
 
 `` roslaunch rotors_gazebo mav_hovering_example_with_vi_sensor.launch ``
 

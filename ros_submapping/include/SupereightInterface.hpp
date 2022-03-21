@@ -111,7 +111,7 @@ public:
         dataConfig_(dataConfig), meshesPath_(meshesPath) {
 
     se::OccupancyMap<se::Res::Multi> map(mapConfig_, dataConfig_);
-    flag = true;
+    loop_closure_redo_hashing = false;
   };
 
   /**
@@ -304,6 +304,8 @@ private:
   std::thread dataPreparationThread_; ///< Thread running data preparation loop.
   SubmapList submaps_;                ///< List containing all the submaps
 
+  // To access maps. This is safe: the lookups only contain refs to maps that are done being integrated.
+  // No segfault risk.
   std::unordered_map<uint64_t, SubmapList::iterator> submapLookup_; // use this to access submaps (index,submap)
   std::unordered_map<uint64_t, Transformation> submapPoseLookup_; // use this to access submap poses (index,pose)
 
@@ -329,6 +331,8 @@ private:
 
   std::unordered_map<Eigen::Vector3i, std::unordered_set<int>, SpatialHasher> hashTable_; // a hash table for quick submap access (box coord, list of indexes)
 
+  std::unordered_map<int, std::unordered_set<Eigen::Vector3i, SpatialHasher>> hashTableInverse_; // inverse access hash table (index, list of box coords)
+
   bool blocking_ = false;
   okvis::Time timeZero_;
 
@@ -336,7 +340,9 @@ private:
   submapMeshesCallback submapMeshesCallback_; // to visualize in Publisher
   submapCallback submapCallback_; // to visualize in Publisher
   replanCallback replanCallback_; // to trigger new plan()
-  bool flag; // buttare
+
+  // this flag is set when we get a loop closure frame, and lowered whenever we reassign submap hashes
+  bool loop_closure_redo_hashing;
 };
 
 #endif /* INCLUDE_SUPEREIGHTINTERFACE_HPP_ */

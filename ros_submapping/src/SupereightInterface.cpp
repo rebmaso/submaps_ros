@@ -235,41 +235,13 @@ void SupereightInterface::processSupereightFrames() {
     // Proceed with supereight integration
     const auto start_time = std::chrono::high_resolution_clock::now();
 
-    // Update pose lookup --> each time a new seframe arrives, it contains updated info on all kf poses.
+    //  Update pose lookup --> each time a new seframe arrives, it contains updated info on all kf poses.
     //  we update here all poses
+
     for (auto &keyframeData : supereightFrame.keyFrameDataVec) {
     
       const auto id = keyframeData.id;
       const auto T_WM = keyframeData.T_WM;
-      
-      Eigen::Vector3i pos_floor; //  floor of kf position
-      for (int i = 0 ; i < 3 ; i++)
-      {
-        pos_floor(i) = (int)(floor(T_WM.r()(i)));
-      }
-
-      // update hash table: push map id in the boxes inside radius (avoid adding same id 2 times in a given box)
-      
-      // simple version: real map is a 5x5x5 box in front of the camera. 
-      // lets assign a 10x10x10 set of 1x1x1 boxes around the kf so it's simple
-      // will obviously exceed real submap boundaries but theres no problem w that.
-      // instead, it increases efficiency for huge maps
-      // side note: -0.5 and 0.5 both map in the 0 box coordinate. 
-      // this is not cool, but also not a problem (its not a real bug, planning works fine)
-
-      const int side = 5; // TODO get this from the map config?
-      for (int x = -side; x < side; x++)
-      {
-        for (int y = -side; y < side; y++)
-        {
-          for (int z = -side; z < side; z++)
-          {
-            // this statement is executed 1000 times... maybe decrease box radius
-            const Eigen::Vector3i offset(x,y,z);
-            hashTable_[pos_floor + offset].insert(id); // uniquely add id
-          }
-        }
-      }
       
       // Check If Id exists.
       if (submapPoseLookup_.count(id)) {
@@ -281,13 +253,122 @@ void SupereightInterface::processSupereightFrames() {
       }
     }
 
+    // if a loop closure was detected, redo hashing
+
+    if(loop_closure_redo_hashing) {
+
+        std::cout << "Loop closure: re-assigning spatial hash table \n";
+
+        // if we have a new keyframe & there's been a place recognition in the past frames --> reassign all locations
+        // TODO reallocate previous positions: only do this for the frames that were involved in the loop. (check new okvis commit)
+
+        loop_closure_redo_hashing = false; // lower the flag
+    
+        for (auto &it: hashTableInverse_) {
+
+          auto id = it.first;
+                  
+          std::cout << "   map " << id <<  "\n";
+
+          // remove every submap from the hash tables
+          for (auto &pos : hashTableInverse_[id]) // iterate over boxes for each keyframe
+          {
+            hashTable_[pos].erase(id); // remove id from box
+            hashTableInverse_[id].erase(pos); // remove box from id
+          }          
+          
+          const auto T_WM = submapPoseLookup_[id];
+          const Eigen::Matrix4d Tf = T_WM.T();
+
+          // we do it this way even if it means possible floor values that are the same. but if we added +1
+          // gaps could occur. takes a bit longer to allocate, but spare more time in submap query at planning time
+          for (float x = -1; x < 5; x+=0.5) // 0 6
+          {
+            for (float y = -3; y < 3; y+=0.5) // -4 4
+            {
+              for (float z = -3; z < 3; z+=0.5) // -4 4
+              {
+                
+                // get offset value (this pos is in kf frame)
+                Eigen::Vector4d pos_kf(x,y,z,1);
+
+                // transform into world frame
+                Eigen::Vector4d pos_world;
+                pos_world = Tf * pos_kf;
+
+                // floor transformed value
+                Eigen::Vector3i pos_floor;
+                for (int i = 0 ; i < 3 ; i++)
+                {
+                  pos_floor(i) = (int)(floor(pos_world(i)));
+                }
+
+                // add to hashtable 
+                hashTable_[pos_floor].insert(id);
+                
+                // add pos to the inverse hash table
+                hashTableInverse_[id].insert(pos_floor);
+              }
+            }
+          }
+
+          
+
+        }
+      }
+
     // Chech whether we need to create a new submap. --> integrate in new or existing map?
     // this is the latest "active" keyframe id
     static uint64_t prevKeyframeId = supereightFrame.keyframeId;
 
-    // ---------------------------- CREATE NEW MAP ---------------------------
+    // =========== CREATE NEW MAP ===========
+
+    // if we have a new keyframe --> create new map (and save previous kf map)
 
     if (supereightFrame.keyframeId != prevKeyframeId || submaps_.empty()) { 
+
+      std::cout << "New keyframe " << supereightFrame.keyframeId <<  "\n";
+
+      
+      // ======= hashing for newest keyframe =======
+        
+      const auto id = supereightFrame.keyframeId;
+      const auto T_WM = submapPoseLookup_[id];
+
+      const Eigen::Matrix4d Tf = T_WM.T();
+
+      for (float x = -1; x < 5; x+=0.5)
+      {
+        for (float y = -3; y < 3; y+=0.5)
+        {
+          for (float z = -3; z < 3; z+=0.5)
+          {
+            
+            // get offset value (this pos is in kf frame)
+            Eigen::Vector4d pos_kf(x,y,z,1);
+
+            // transform into world frame
+            Eigen::Vector4d pos_world;
+            pos_world = Tf * pos_kf;
+
+            // floor transformed value
+            Eigen::Vector3i pos_floor;
+            for (int i = 0 ; i < 3 ; i++)
+            {
+              pos_floor(i) = (int)(floor(pos_world(i)));
+            }
+
+            // add to hashtable 
+            hashTable_[pos_floor].insert(id);
+
+            // add pos to the inverse hash table
+            hashTableInverse_[id].insert(pos_floor);
+
+          }
+        }
+      }
+
+      // ======= end hashing =======
 
       // Quick hack for Tomaso, save the finished map using its current pose.
       if (!submaps_.empty()) {
@@ -297,33 +378,23 @@ void SupereightInterface::processSupereightFrames() {
         // Retrieve the respective KF pose from the lookup we just updated by reading seframes
         const auto T_WF = submapPoseLookup_[prevKeyframeId];
 
-        // Compute the tranformation needed in Supereight 2. We can use
-        // submaps_.back()->getTWM(). However this returns  a zero matrix in s8
-        // e9fa2e01e3124ae76896393450f21180fae76cf4. Let's instead get the
-        // transformation from the map config.
-        const Eigen::Matrix4d T_MW = mapConfig_.T_MW.cast<double>();
-        Eigen::Matrix4d T_WM = Eigen::Matrix4d::Identity();
-
-        // Compute the inverse manually....
-        T_WM.topLeftCorner<3, 3>() = T_MW.topLeftCorner<3, 3>().transpose();
-        T_WM.topRightCorner<3, 1>() = -T_MW.topLeftCorner<3, 3>().transpose() *
-                                      T_MW.topRightCorner<3, 1>();
-        
         // this should be the mesh tf wrt world (bc Twm should be T(sensor)(mesh))
         // Eigen::Matrix4d T_WM_mesh = T_WF.T() * T_WM;
         
-        // --------------- !!!!!!!!!!!!!!!!!!!!!! ------------------
-        // since we only need to visualize them w markers. lets save them with identity pose (but w the right scale), and add the kf pose later
-        Eigen::Matrix4d T_WM_mesh = T_WM;
+        // // since we only need to visualize them w markers. lets save them with identity pose (but w the right scale), and add the kf pose later
+
+        Eigen::Matrix4f T_WM_mesh = submaps_.back()->getTWM();
 
         // Apply the scale. Important -> this interface will change in the next
         // versions of supereight 2.0
-        T_WM_mesh.topLeftCorner<3, 3>() =
-            submaps_.back()->getRes() * T_WM_mesh.topLeftCorner<3, 3>();
+        //  T_WM_mesh.topLeftCorner<3, 3>() =
+        //      submaps_.back()->getRes() * T_WM_mesh.topLeftCorner<3, 3>();
 
-        // SAVE THE MESH (its name is the kf id) ADDING AN OFFSET OF TWM (THE KF POSE)
+        // SAVE THE MESH OF THE MAP WE JUST FINISHED INTEGRATING
         // std::cout << "(seinterface) saving mesh as ply... \n";
-        submaps_.back()->saveMesh(meshFilename, T_WM_mesh.cast<float>()); 
+        
+        // submaps_.back()->saveMesh(meshFilename, T_WM_mesh);
+        submaps_.back()->saveMesh(meshFilename);
                 
         // call submap visualizer & plan() (outside this class) each time we save a new map
         publishSubmaps(); 
@@ -336,13 +407,14 @@ void SupereightInterface::processSupereightFrames() {
       frame = 0;
 
       // Add the (keyframe Id, iterator) pair in the submapLookup_
+      // We save the map that is done being integrated. not the current one. so its safe to access it outside
       submapLookup_.insert(std::make_pair(supereightFrame.keyframeId,
                                           std::prev(submaps_.end())));
     }
 
-    // -------------------------------------------------------------------
+    // =========== END CREATE NEW MAP ===========
 
-    // INTEGRATE IN CURRENT ("active") MAP
+    // INTEGRATE IN CURRENT ("active") MAP (can be the map we just created)
 
     // Prepare for next iteration
     prevKeyframeId = supereightFrame.keyframeId;
@@ -464,6 +536,8 @@ bool SupereightInterface::stateUpdateCallback(
     const bool result =
         stateUpdates_.PushBlockingIfFull(latestStateData, stateUpdateQueue);
     cvNewSensorMeasurements_.notify_one();
+    // if a place is recognised, we must reassign all submap hashes (we do so in processseframe)
+    if(latestTrackingState.recognisedPlace) loop_closure_redo_hashing = true; // raise the flag
     return result;
   } else {
     if (stateUpdates_.PushNonBlockingDroppingIfFull(latestStateData,

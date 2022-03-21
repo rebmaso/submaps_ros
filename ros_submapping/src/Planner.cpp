@@ -58,7 +58,7 @@ Planner::Planner(const ob::StateValidityCheckerFn &svc) {
   
   // set planner
   rrt = std::make_shared<og::InformedRRTstar>(ss->getSpaceInformation());
-  rrt->setRange(0.5);
+  rrt->setRange(0.2);
 
   ss->setPlanner(rrt);
   
@@ -128,7 +128,7 @@ bool Planner::plan()
   // load current start & goal
   ss->setStartAndGoalStates((*start), (*goal));
 
-  ob::PlannerStatus solved = ss->solve(1.0);
+  ob::PlannerStatus solved = ss->solve(2.0);
 
   if (solved) {
 

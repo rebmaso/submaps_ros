@@ -668,8 +668,8 @@ void Publisher::publishKeyframesAsCallback(const State &latestState, const Track
     KFmsg_.header.stamp = ros::Time::now(); // weird hack
   KFmsg_.ns = "kf_ns";
   KFmsg_.id = keyframeStates[i].id.value(); // id of the keyframe
-  KFmsg_.type = visualization_msgs::Marker::ARROW;
-  // KFmsg_.type = visualization_msgs::Marker::SPHERE;
+  KFmsg_.type = visualization_msgs::Marker::MESH_RESOURCE;
+  KFmsg_.mesh_resource = "package://rviz_rotors/meshes/camera.stl";
   KFmsg_.action = visualization_msgs::Marker::ADD;
   // orientation
   Eigen::Quaterniond q = keyframeStates[i].T_WS.q();
@@ -684,11 +684,11 @@ void Publisher::publishKeyframesAsCallback(const State &latestState, const Track
   KFmsg_.pose.position.z = r[2];
   // scale
   KFmsg_.scale.x = 0.25;
-  KFmsg_.scale.y = 0.02;
-  KFmsg_.scale.z = 0.02;
+  KFmsg_.scale.y = 0.25;
+  KFmsg_.scale.z = 0.25;
   KFmsg_.color.a = 1.0;
-  KFmsg_.color.r = 1.0;
-  KFmsg_.color.g = 0.0;
+  KFmsg_.color.r = 0.0;
+  KFmsg_.color.g = 1.0;
   KFmsg_.color.b = 0.0;
   KFmsg_.lifetime = ros::Duration(0.5); // lasts for 0.5 sec
   KFmsg_.frame_locked = true;

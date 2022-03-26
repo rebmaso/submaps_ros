@@ -525,10 +525,10 @@ void SupereightInterface::display() {
 
 bool SupereightInterface::stateUpdateCallback(
     const State &latestState, const TrackingState &latestTrackingState,
-    const StateVector &keyframeStates) {
+    std::shared_ptr<const okvis::AlignedVector<State>> keyframeStates) {
 
   // Assemble OKVIS updates in a struct and push in the corresponding Queue.
-  OkvisUpdate latestStateData(latestState, keyframeStates,
+  OkvisUpdate latestStateData(latestState, *keyframeStates,
                               latestState.timestamp,
                               latestTrackingState.isKeyframe);
   const size_t stateUpdateQueue = 100; ///< 5 seconds of data at 20Hz.

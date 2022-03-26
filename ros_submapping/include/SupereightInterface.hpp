@@ -174,7 +174,7 @@ public:
    */
   bool stateUpdateCallback(const State &latestState,
                            const TrackingState &latestTrackingState,
-                           const StateVector &keyframeStates);
+                           std::shared_ptr<const okvis::AlignedVector<State>> keyframeStates);
 
   /**
    * @brief      Gets the size of the to-be-processed supereight frames.

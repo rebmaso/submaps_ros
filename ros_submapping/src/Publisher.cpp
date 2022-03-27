@@ -649,9 +649,11 @@ void Publisher::publishLandmarksAsCallback(
 }
 
 
-void Publisher::publishKeyframesAsCallback(const State &latestState, const TrackingState &latestTrackingState,const StateVector &keyframeStates) {
+void Publisher::publishKeyframesAsCallback(const State &latestState, const TrackingState &latestTrackingState, std::shared_ptr<const okvis::AlignedVector<State>> keyframeStates_) {
 
   visualization_msgs::MarkerArray KFarraymsg_;
+
+  auto keyframeStates = *keyframeStates_;
 
   for (int i = 0; i < keyframeStates.size(); i++) // iterate over keyframes stdvector
   {

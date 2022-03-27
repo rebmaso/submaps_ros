@@ -112,6 +112,7 @@ public:
 
     se::OccupancyMap<se::Res::Multi> map(mapConfig_, dataConfig_);
     loop_closure_redo_hashing = false;
+    no_kf_yet = true;
   };
 
   /**
@@ -343,6 +344,10 @@ private:
 
   // this flag is set when we get a loop closure frame, and lowered whenever we reassign submap hashes
   bool loop_closure_redo_hashing;
+
+  // We use this to store the active keyframe in predict(), to prepare the supereightframe
+  State latestKeyframe;
+  bool no_kf_yet;
 };
 
 #endif /* INCLUDE_SUPEREIGHTINTERFACE_HPP_ */

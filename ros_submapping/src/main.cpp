@@ -249,6 +249,7 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
                              std::shared_ptr<const okvis::MapPointVector> _4){ 
 
                                publisher.processState(_1,_2); 
+                               publisher.publishKeyframesAsCallback(_1,_2,_3);
                                writer->processState(_1,_2,_3,_4); 
                                planner->processState(_1,_2);
                                se_interface->stateUpdateCallback(_1,_2,_3);});

@@ -149,11 +149,22 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
 
   // Retrieve the Pose of the latest inserted Keyframe (active KF tied to initial state). ToDo -> This is only
   // correct when the vector has been created withopur altering the KF order
-  const auto &T_WS0 = initialStateData.keyframeStates.rbegin()->T_WS;
-  T_WC0 = T_WS0 * T_SC_;
+  // const auto &T_WS0 = initialStateData.keyframeStates.rbegin()->T_WS; --> this does not work anymore! unordered vector!
+  // let's handle it like this:
 
-  // Id of the latest inserted Kf.
-  keyframeId = initialStateData.keyframeStates.rbegin()->id.value();
+  Transformation T_WS0;
+  if (initialStateData.isKeyframe || no_kf_yet) {
+    no_kf_yet = false;
+    T_WS0 = initialStateData.latestState.T_WS;
+    keyframeId = initialStateData.latestState.id.value();
+    latestKeyframe = initialStateData.latestState;
+  }
+  else {
+    T_WS0 = latestKeyframe.T_WS;
+    keyframeId = latestKeyframe.id.value();
+  }
+
+  T_WC0 = T_WS0 * T_SC_;
 
   // KF poses. 
   keyFrameDataVec = KeyFrameDataVec(initialStateData.keyframeStates.size());
@@ -358,6 +369,8 @@ void SupereightInterface::processSupereightFrames() {
               pos_floor(i) = (int)(floor(pos_world(i)));
             }
 
+            // std::cout << "   box \n " << pos_floor <<  "\n";
+
             // add to hashtable 
             hashTable_[pos_floor].insert(id);
 
@@ -394,6 +407,7 @@ void SupereightInterface::processSupereightFrames() {
         // std::cout << "(seinterface) saving mesh as ply... \n";
         
         // submaps_.back()->saveMesh(meshFilename, T_WM_mesh);
+
         submaps_.back()->saveMesh(meshFilename);
                 
         // call submap visualizer & plan() (outside this class) each time we save a new map
@@ -545,6 +559,7 @@ bool SupereightInterface::stateUpdateCallback(
       // Oldest measurement dropped
       LOG(WARNING) << "Oldest state  measurement dropped";
       cvNewSensorMeasurements_.notify_one();
+      if(latestTrackingState.recognisedPlace) loop_closure_redo_hashing = true; // raise the flag
       return true;
     }
   }
@@ -628,7 +643,7 @@ bool SupereightInterface::detectCollision(const ompl::base::State *state)
 
           const Eigen::Vector3f r_map = r_map_hom.head<3>().cast<float>(); // take first 3 elems and cast to float
           
-
+          // std::cout << "checking box_coord \n" << box_coord << "\n";
 
           // if voxel belongs to current submap
           if((*submapLookup_[id])->contains(r_map))

@@ -105,7 +105,7 @@ This project has also been tested on the uHumans2 dataset. I chose it because it
 
 Just publish a goal on the /navgoal topic like this:
 
-`` rostopic pub -1 /navgoal geometry_msgs/Pose  '{position:  {x: 0.0, y: 0.0, z: 1.0}, orientation: {x: 0.0,y: 0.0,z: 0.0,w: 1.0}}' ``
+`` rostopic pub -1 /navgoal geometry_msgs/Pose  '{position:  {x: 4.0, y: 4.0, z: 1.0}, orientation: {x: 0.0,y: 0.0,z: 0.0,w: 1.0}}' ``
 
 
 

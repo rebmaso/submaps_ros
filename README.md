@@ -54,7 +54,7 @@ Now create a folder named "in_out" in the top directory of your workspace and ad
 Spawn the drone and run the RotorS controller (do this before you launch the processing pipeline! early sensor data are always crappy in Gazebo: best to discard the very first).
 You can find that this launch also publishes a fixed odom frame with the start location of the robot, so that we can visualize state estimate and maps correctly.
 
-`` roslaunch rotors_gazebo mav_hovering_example_with_vi_sensor.launch <world_name:=garching_kitchen>``
+`` roslaunch rotors_gazebo mav_hovering_example_with_vi_sensor.launch <world_name:=garching_kitchen> ``
 
 Worlds that have been tested: garching_kitchen, maze.
 
@@ -105,7 +105,7 @@ This project has also been tested on the uHumans2 dataset. I chose it because it
 
 Just publish a goal on the /navgoal topic like this:
 
-`` rostopic pub -1 /navgoal geometry_msgs/Pose  '{position:  {x: 0.0, y: 0.0, z: 1.0}, orientation: {x: 0.0,y: 0.0,z: 0.0,w: 1.0}}' ``
+`` rostopic pub -1 /navgoal geometry_msgs/Pose  '{position:  {x: 4.0, y: 4.0, z: 1.0}, orientation: {x: 0.0,y: 0.0,z: 0.0,w: 1.0}}' ``
 
 
 

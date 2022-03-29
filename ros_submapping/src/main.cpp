@@ -233,13 +233,26 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
   // =============== REGISTER CALLBACKS ===============
 
   // okvis state estimation 
-  okvis_estimator->setStateCallback([&](const okvis::State& _1, const okvis::TrackingState& _2){ publisher.processState(_1,_2); writer->processState(_1,_2); planner->processState(_1,_2);});
+  //okvis_estimator->setStateCallback([&](const okvis::State& _1, const okvis::TrackingState& _2){ publisher.processState(_1,_2); writer->processState(_1,_2); planner->processState(_1,_2);});
 
   // set path visualizer
   planner->setPathCallback(std::bind(&Publisher::publishPathAsCallback, &publisher, std::placeholders::_1));
 
   // send keyframe-tied states to both supereight & publisher
-  okvis_estimator->setKeyFrameStatesCallback([&](const State &_1, const TrackingState &_2, const StateVector &_3){ se_interface->stateUpdateCallback(_1,_2,_3); publisher.publishKeyframesAsCallback(_1,_2,_3); });
+  // okvis_estimator->setKeyFrameStatesCallback([&](const State &_1, const TrackingState &_2, const StateVector &_3){ se_interface->stateUpdateCallback(_1,_2,_3); publisher.publishKeyframesAsCallback(_1,_2,_3); });
+ 
+  // send state to publisher, writer, planner. send state + graph (keyframes) to seinterface 
+  // I'm not passing the landmarks
+  okvis_estimator->setOptimisedGraphCallback([&](const okvis::State & _1, 
+                             const okvis::TrackingState & _2,
+                             std::shared_ptr<const okvis::AlignedVector<State>> _3,
+                             std::shared_ptr<const okvis::MapPointVector> _4){ 
+
+                               publisher.processState(_1,_2); 
+                               publisher.publishKeyframesAsCallback(_1,_2,_3);
+                               writer->processState(_1,_2,_3,_4); 
+                               planner->processState(_1,_2);
+                               se_interface->stateUpdateCallback(_1,_2,_3);});
 
   // visualize the submaps
   // mesh version:

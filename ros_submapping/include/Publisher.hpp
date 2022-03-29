@@ -259,7 +259,7 @@ class Publisher
    */
   void publishKeyframesAsCallback(
     const State &latestState, const TrackingState &latestTrackingState,
-    const StateVector &keyframeStates);
+    std::shared_ptr<const okvis::AlignedVector<State>> keyframeStates);
 
   /**
    * @brief publish path computed by ompl.

@@ -38,6 +38,7 @@
 #include <okvis/FrameTypedefs.hpp>
 #include <okvis/Time.hpp>
 #include <okvis/Measurements.hpp>
+#include "SupereightInterface.hpp"
 
 
 namespace ob = ompl::base;
@@ -48,6 +49,8 @@ typedef std::function<void(const og::PathGeometric & path)> pathCallback;
 class Planner
 {
 private:
+
+  SupereightInterface* se_interface;
 
   ob::StateSpacePtr space; // the state space we are planning in
 
@@ -63,7 +66,7 @@ private:
 
   pathCallback pathCallback_; // external visualizer (it's in Publisher)
 
-  bool started; // a flag that is needed to avoid unnecessary planning at startup
+  //bool started; // a flag that is needed to avoid unnecessary planning at startup
 
 public:
 
@@ -72,7 +75,7 @@ public:
   Planner() = delete;
 
   // sets planner config. pass the supereightinterface svc handle from main
-  Planner(const ob::StateValidityCheckerFn &svc);
+  Planner(SupereightInterface* se_interface_);
 
   ~Planner() = default;
 

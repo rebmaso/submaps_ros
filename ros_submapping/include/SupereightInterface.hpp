@@ -230,6 +230,13 @@ void replan();
 bool detectCollision(const ompl::base::State *state);
 
 
+/**
+   * @brief      triggers copy assignment of read-only lookup tables for the collision function
+   *
+   */
+void fixReadLookups();
+
+
 private:
   /**
    * @brief      Converts an OpenCV Mat depth frame following the TUM convention
@@ -349,6 +356,12 @@ private:
   // We use this to store the active keyframe in predict(), to prepare the supereightframe
   State latestKeyframe;
   bool no_kf_yet;
+
+  // Static lookups to use for collision checking (TODO make const?)
+  std::unordered_map<uint64_t, SubmapList::iterator> submapLookup_read; 
+  std::unordered_map<uint64_t, Transformation> submapPoseLookup_read;
+  std::unordered_map<Eigen::Vector3i, std::unordered_set<int>, SpatialHasher> hashTable_read;
+
 };
 
 #endif /* INCLUDE_SUPEREIGHTINTERFACE_HPP_ */

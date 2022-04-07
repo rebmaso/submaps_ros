@@ -218,8 +218,8 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
 
   // =============== PLANNER ===============
 
-  // creates planner object, passing the collision checker as an argument
-  planner = std::make_shared<Planner>(std::bind(&SupereightInterface::detectCollision, se_interface, std::placeholders::_1 ));
+  // creates planner object, passing seinterface object pointer
+  planner = std::make_shared<Planner>(se_interface.get());
 
 
   // =============== REGISTER CALLBACKS ===============

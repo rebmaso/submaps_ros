@@ -1,6 +1,10 @@
 #include "Planner.hpp"
 
-Planner::Planner(const ob::StateValidityCheckerFn &svc) {
+Planner::Planner(SupereightInterface* se_interface_) {
+
+  // ============ SET SEINTERFACE PTR ============  
+
+  se_interface = se_interface_;
 
   // ============ SET STATE SPACE ============
 
@@ -42,7 +46,7 @@ Planner::Planner(const ob::StateValidityCheckerFn &svc) {
   ss->setStartAndGoalStates((*start), (*goal));
   
   // set collision checker
-  ss->setStateValidityChecker(svc);
+  ss->setStateValidityChecker(std::bind(&SupereightInterface::detectCollision, se_interface, std::placeholders::_1 )); 
 
   // specify cost heuristic for planner.
   ob::OptimizationObjectivePtr obj(new ob::PathLengthOptimizationObjective(ss->getSpaceInformation()));
@@ -65,7 +69,7 @@ Planner::Planner(const ob::StateValidityCheckerFn &svc) {
   // create empty path
   path = std::make_shared<og::PathGeometric>(ss->getSpaceInformation());
 
-  started = false;
+  //started = false;
 
   std::cout << "\n\nPlanner initialized...\n\n";
 
@@ -103,7 +107,7 @@ void Planner::setGoal(const Eigen::Vector3d & r)
   // (*goal)->as<ob::SO3StateSpace::StateType>(1)->z = q.z();
   // (*goal)->as<ob::SO3StateSpace::StateType>(1)->w = q.w();
 
-  started = true;
+  //started = true;
 
   plan(); // should plan whenever I set a new goal I get a new goal (returns after plan() is done)
 }
@@ -113,7 +117,10 @@ bool Planner::plan()
   // this condition is needed to avoid planning when we have not assigned a goal yet (at startup)
   // but new maps are still added because e.g. the drone is flying around manually
   // when we set the first goal with setGoal() -> start = true
-  if(!started) return true;
+  // if(!started) return true;
+
+  // set the fixed lookups for the collision checking func
+  se_interface->fixReadLookups();
 
   std::cout << "\n\n(Planner) planning from: " 
   << (**start)[0] << " " 

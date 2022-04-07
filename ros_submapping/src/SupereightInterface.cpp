@@ -238,8 +238,6 @@ void SupereightInterface::processSupereightFrames() {
     std::unique_lock<std::mutex> lk(s8Mutex_);
     cvNewSupereightData_.wait(lk, [&] { return supereightFrames_.Size(); });
 
-    std::unique_lock<std::mutex> submapLock(subMapMutex_);
-
     // Get the supereight depth frame --> need to integrate it into a submap
     SupereightFrame supereightFrame;
     if (!supereightFrames_.PopNonBlocking(&supereightFrame))
@@ -580,9 +578,7 @@ bool SupereightInterface::detectCollision(const ompl::base::State *state)
 {
   // with hash table, checking for circle around drone
 
-  if(submapLookup_.empty()) return false;
-
-  std::unique_lock<std::mutex> submapLock(subMapMutex_);
+  if(submapLookup_read.empty()) return false;
 
   const ompl::base::RealVectorStateSpace::StateType *pos = state->as<ompl::base::RealVectorStateSpace::StateType>();
 
@@ -624,7 +620,7 @@ bool SupereightInterface::detectCollision(const ompl::base::State *state)
         bool unmapped = true;
 
         // iterate over submap ids (only the ones that contain current state!)
-        for (auto& id: hashTable_[box_coord]) {
+        for (auto& id: hashTable_read[box_coord]) {
           
           // // if checking in active submap -> wait for mutex to unlock
           // // unlocks when out of scope
@@ -632,16 +628,16 @@ bool SupereightInterface::detectCollision(const ompl::base::State *state)
           // if(id == active_submap_id) submapLock.lock();
 
           // transform state coords to check from world to map frame
-          const Eigen::Matrix4d T_wf = submapPoseLookup_[id].T(); // kf wrt world
+          const Eigen::Matrix4d T_wf = submapPoseLookup_read[id].T(); // kf wrt world
           const Eigen::Vector4d r_map_hom = T_wf.inverse() * r_new;// state coordinates (homogenous) in map frame
 
           const Eigen::Vector3f r_map = r_map_hom.head<3>().cast<float>(); // take first 3 elems and cast to float
           
           // if voxel belongs to current submap
-          if((*submapLookup_[id])->contains(r_map))
+          if((*submapLookup_read[id])->contains(r_map))
           {
             unmapped = false;
-            auto data = (*submapLookup_[id])->getData(r_map);
+            auto data = (*submapLookup_read[id])->getData(r_map);
             double occupancy = data.occupancy * data.weight; // occupancy value of the 3d point
             tot_occupancy += occupancy;
           }
@@ -667,6 +663,13 @@ bool SupereightInterface::detectCollision(const ompl::base::State *state)
   // if we reach this point, it means every point on the circle is free
   return true;
 
+}
+
+void SupereightInterface::fixReadLookups()
+{
+  submapLookup_read = submapLookup_;
+  submapPoseLookup_read = submapPoseLookup_;
+  hashTable_read = hashTable_;
 }
 
 void SupereightInterface::replan() 

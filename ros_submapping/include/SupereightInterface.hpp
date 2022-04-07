@@ -113,6 +113,7 @@ public:
     se::OccupancyMap<se::Res::Multi> map(mapConfig_, dataConfig_);
     loop_closure_redo_hashing = false;
     no_kf_yet = true;
+    active_submap_id = 1;
   };
 
   /**
@@ -305,10 +306,10 @@ private:
   std::thread dataPreparationThread_; ///< Thread running data preparation loop.
   SubmapList submaps_;                ///< List containing all the submaps
 
-  // To access maps. This is safe: the lookups only contain refs to maps that are done being integrated.
-  // No segfault risk.
+  // To access maps
   std::unordered_map<uint64_t, SubmapList::iterator> submapLookup_; // use this to access submaps (index,submap)
   std::unordered_map<uint64_t, Transformation> submapPoseLookup_; // use this to access submap poses (index,pose)
+  uint64_t active_submap_id; // to avoid segfaults. this id the id of the map that is currently being integrated
 
   // to hash a 3 int eigen vector
   struct SpatialHasher {
@@ -330,8 +331,8 @@ private:
     }   
   };
 
+  // spatial hash maps --> 1x1x1 boxes (maybe make them bigger)
   std::unordered_map<Eigen::Vector3i, std::unordered_set<int>, SpatialHasher> hashTable_; // a hash table for quick submap access (box coord, list of indexes)
-
   std::unordered_map<int, std::unordered_set<Eigen::Vector3i, SpatialHasher>> hashTableInverse_; // inverse access hash table (index, list of box coords)
 
   bool blocking_ = false;

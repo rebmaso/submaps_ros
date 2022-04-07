@@ -1,0 +1,39 @@
+%YAML:1.2
+
+map:
+  dim:                        [4.96, 4.96, 4.96]
+  res:                        0.2
+
+data:
+  # # tsdf
+  # truncation_boundary_factor: 8
+  # max_weight:                 100
+
+  # occupancy
+  surface_boundary:           0
+  min_occupancy:              -100
+  max_occupancy:               100
+  log_odd_min:                -5.015
+  log_odd_max:                 5.015
+  fs_integr_scale:            1
+  const_surface_thickness:    false
+  uncertainty_model:          linear
+  tau_min_factor:             3
+  tau_max_factor:             12
+  k_tau:                      0.05
+  sigma_min_factor:           1         # minimum/maximum uncertainty := 3 x sigma_min_factor/sigma_max_factor * voxel_dim
+  sigma_max_factor:           3         # minimum/maximum uncertainty := 3 x sigma_min_factor/sigma_max_factor * voxel_dim
+  k_sigma:                    0.05
+
+sensor:
+  # all these values were taken from components_snippets.xacro
+  width:                      640
+  height:                     480
+  fx:                         205.469637
+  fy:                         205.469637
+  cx:                         320.500000
+  cy:                         240.500000
+  left_hand_frame:            false
+  near_plane:                 0.4
+  far_plane:                  4.0
+

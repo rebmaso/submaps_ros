@@ -173,9 +173,12 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
     keyFrameDataVec.at(i) = KeyframeData(state.id.value(), state.T_WS * T_SC_);
   }
 
-  // We can use the built in OKVIS prediction. Todo -> try to avoid the
+  // HACK: We can use the built in OKVIS prediction. Todo -> try to avoid the
   // duplicate queues and duplicate  code and check if we can directly Query the
   // propagated pose from OKVIS
+
+  // We are getting all imu meas from the initial state to the final state
+  // put them in the deque --> later we integrate them
   okvis::ImuMeasurementDeque imuDeque;
   while (true) {
     // Get a copy of the oldest element in the Queue.
@@ -207,7 +210,7 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
           .finished());
 
   // Todo -> Load the parameters from a config file. Set to a large value to
-  // supress warnings.
+  // suppress warnings.
   okvis::ImuParameters imuParams;
   imuParams.a_max = 1e+4;
   imuParams.g_max = 1e+4;
@@ -235,16 +238,15 @@ void SupereightInterface::processSupereightFrames() {
     std::unique_lock<std::mutex> lk(s8Mutex_);
     cvNewSupereightData_.wait(lk, [&] { return supereightFrames_.Size(); });
 
+    std::unique_lock<std::mutex> submapLock(subMapMutex_);
+
     // Get the supereight depth frame --> need to integrate it into a submap
     SupereightFrame supereightFrame;
     if (!supereightFrames_.PopNonBlocking(&supereightFrame))
       continue;
 
-    // Prevent other thread from editing the submaps vector 
-    std::unique_lock<std::mutex> submapLock(subMapMutex_);
-
     // Proceed with supereight integration
-    const auto start_time = std::chrono::high_resolution_clock::now();
+    // const auto start_time = std::chrono::high_resolution_clock::now();
 
     //  Update pose lookup --> each time a new seframe arrives, it contains updated info on all kf poses.
     //  we update here all poses
@@ -279,7 +281,7 @@ void SupereightInterface::processSupereightFrames() {
 
           auto id = it.first;
                   
-          std::cout << "   map " << id <<  "\n";
+          std::cout << "   Submap " << id <<  "\n";
 
           // remove every submap from the hash tables
           for (auto &pos : hashTableInverse_[id]) // iterate over boxes for each keyframe
@@ -336,9 +338,11 @@ void SupereightInterface::processSupereightFrames() {
 
     // if we have a new keyframe --> create new map (and save previous kf map)
 
+    static unsigned int submap_counter = 0;
     if (supereightFrame.keyframeId != prevKeyframeId || submaps_.empty()) { 
-
-      std::cout << "New keyframe " << supereightFrame.keyframeId <<  "\n";
+      
+      submap_counter ++;
+      std::cout << "Submap no. " << submap_counter << " (kf Id: " << supereightFrame.keyframeId << ")" << "\n";
 
       
       // ======= hashing for newest keyframe =======
@@ -391,23 +395,8 @@ void SupereightInterface::processSupereightFrames() {
         // Retrieve the respective KF pose from the lookup we just updated by reading seframes
         const auto T_WF = submapPoseLookup_[prevKeyframeId];
 
-        // this should be the mesh tf wrt world (bc Twm should be T(sensor)(mesh))
-        // Eigen::Matrix4d T_WM_mesh = T_WF.T() * T_WM;
-        
-        // // since we only need to visualize them w markers. lets save them with identity pose (but w the right scale), and add the kf pose later
-
-        Eigen::Matrix4f T_WM_mesh = submaps_.back()->getTWM();
-
-        // Apply the scale. Important -> this interface will change in the next
-        // versions of supereight 2.0
-        //  T_WM_mesh.topLeftCorner<3, 3>() =
-        //      submaps_.back()->getRes() * T_WM_mesh.topLeftCorner<3, 3>();
-
         // SAVE THE MESH OF THE MAP WE JUST FINISHED INTEGRATING
         // std::cout << "(seinterface) saving mesh as ply... \n";
-        
-        // submaps_.back()->saveMesh(meshFilename, T_WM_mesh);
-
         submaps_.back()->saveMesh(meshFilename);
                 
         // call submap visualizer & plan() (outside this class) each time we save a new map
@@ -421,9 +410,11 @@ void SupereightInterface::processSupereightFrames() {
       frame = 0;
 
       // Add the (keyframe Id, iterator) pair in the submapLookup_
-      // We save the map that is done being integrated. not the current one. so its safe to access it outside
+      // We are adding the map that is curently being integrated (submaps back)
       submapLookup_.insert(std::make_pair(supereightFrame.keyframeId,
                                           std::prev(submaps_.end())));
+
+      active_submap_id = supereightFrame.keyframeId; // need this in collision checker
     }
 
     // =========== END CREATE NEW MAP ===========
@@ -436,15 +427,17 @@ void SupereightInterface::processSupereightFrames() {
     // Retrieve the active submap.
     auto &activeMap = submaps_.back();
 
-    // Integrate depth frame
+    // Integrate depth frame (prevent collision with planner on the active submap)
+    // std::unique_lock<std::mutex> submapLock(subMapMutex_, std::defer_lock);
+    // submapLock.lock();
     se::MapIntegrator integrator(
         *activeMap); //< ToDo -> Check how fast this constructor is
     integrator.integrateDepth(sensor_, supereightFrame.depthFrame,
                               supereightFrame.T_WC.T().cast<float>(), frame);
+    // submapLock.unlock();
     frame++;
 
-    const auto current_time = std::chrono::high_resolution_clock::now();
-
+    // const auto current_time = std::chrono::high_resolution_clock::now();
     // // Some couts, remove when done debugging.
     // std::cout << "Processing delay\t"
     //           << (std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -530,8 +523,6 @@ void SupereightInterface::display() {
   // }
 
   // //Display from the seframes queue
-  // // should work. does not. problem in loading images to seframesqueue
-  // SupereightFrame SupereightFrame_;
   // if (supereightFrames_.getCopyOfFront(&SupereightFrame_)) {
   //   cv::imshow("Depth from Seframes", depthImage2Mat(SupereightFrame_.depthFrame));
   // }
@@ -591,13 +582,15 @@ bool SupereightInterface::detectCollision(const ompl::base::State *state)
 
   if(submapLookup_.empty()) return false;
 
+  std::unique_lock<std::mutex> submapLock(subMapMutex_);
+
   const ompl::base::RealVectorStateSpace::StateType *pos = state->as<ompl::base::RealVectorStateSpace::StateType>();
 
   // the voxel we want to query (wrt world frame, homogenous)
   Eigen::Vector4d r(pos->values[0],pos->values[1],pos->values[2],1);
 
   // check occ inside a sphere around the drone 
-  // for now its very sparse 
+  // very sparse 
   // lowest res is 1 voxel = 0.2m
   const float rad = 0.2; // radius of the sphere
 
@@ -632,10 +625,11 @@ bool SupereightInterface::detectCollision(const ompl::base::State *state)
 
         // iterate over submap ids (only the ones that contain current state!)
         for (auto& id: hashTable_[box_coord]) {
-
-          //std::cout << "--------- \nr " << r << "\n";
-          //std::cout << "r_new " << r_new << "\n";
-          //std::cout << "id " << id.first << "\n";
+          
+          // // if checking in active submap -> wait for mutex to unlock
+          // // unlocks when out of scope
+          // std::unique_lock<std::mutex> submapLock(subMapMutex_, std::defer_lock);
+          // if(id == active_submap_id) submapLock.lock();
 
           // transform state coords to check from world to map frame
           const Eigen::Matrix4d T_wf = submapPoseLookup_[id].T(); // kf wrt world
@@ -643,8 +637,6 @@ bool SupereightInterface::detectCollision(const ompl::base::State *state)
 
           const Eigen::Vector3f r_map = r_map_hom.head<3>().cast<float>(); // take first 3 elems and cast to float
           
-          // std::cout << "checking box_coord \n" << box_coord << "\n";
-
           // if voxel belongs to current submap
           if((*submapLookup_[id])->contains(r_map))
           {
@@ -653,7 +645,6 @@ bool SupereightInterface::detectCollision(const ompl::base::State *state)
             double occupancy = data.occupancy * data.weight; // occupancy value of the 3d point
             tot_occupancy += occupancy;
           }
-          // else std::cout << "unmapped \n";
         } 
         
         // when done iterating over submaps, check total occupancy / check if unmapped

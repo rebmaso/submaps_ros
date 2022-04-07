@@ -9,26 +9,26 @@
 #include <vector>
 #include <memory>
 #include <stdlib.h>
+#include <boost/filesystem.hpp>
+#include <opencv2/opencv.hpp>
 
-// rotorS
-#include <Eigen/Core>
-// #include <mav_msgs/conversions.h>
-// #include <mav_msgs/default_topics.h>
-#include <ros/ros.h>
-// #include <std_srvs/Empty.h>
-// #include <trajectory_msgs/MultiDOFJointTrajectory.h>
+// ros
+// #include <Eigen/Core>
+#include <ros/ros.h> 
+#include <sensor_msgs/Imu.h>
+#include <sensor_msgs/Image.h>
+#include <cv_bridge/cv_bridge.h>
+#include <image_transport/image_transport.h>
+#include <message_filters/subscriber.h>
+#include <message_filters/time_synchronizer.h>
+#include <message_filters/synchronizer.h>
+#include <message_filters/sync_policies/approximate_time.h>
 
 // okvis & supereightinterface
-#include <opencv2/opencv.hpp>
-#include <image_transport/image_transport.h>
-#include <boost/filesystem.hpp>
 #include <okvis/DatasetReader.hpp>
 #include <okvis/ThreadedSlam.hpp>
 #include <okvis/TrajectoryOutput.hpp>
 #include <okvis/ViParametersReader.hpp>
-#include "sensor_msgs/Imu.h"
-#include <sensor_msgs/Image.h>
-#include <cv_bridge/cv_bridge.h>
 #include <SupereightInterface.hpp>
 
 // visualizer
@@ -36,12 +36,6 @@
 
 // planner 
 #include "Planner.hpp"
-
-// message filters. for callbacks
-#include <message_filters/subscriber.h>
-#include <message_filters/time_synchronizer.h>
-#include <message_filters/synchronizer.h>
-#include <message_filters/sync_policies/approximate_time.h>
 
 using namespace sensor_msgs;
 using namespace message_filters;
@@ -52,10 +46,13 @@ private:
 
   // ============= ARGS =============
 
-  char* argv0; // exec path
-  char* argv1; // okvis config
-  char* argv2; // slam/noslam
-  char* argv3; // s8 config
+  char* config_okvis;
+  char* config_s8;
+  char* package_dir;
+  char* imu_topic;
+  char* cam0_topic;
+  char* cam1_topic;
+  char* depth_topic;
 
   // ============= OKVIS + SE =============
 
@@ -119,38 +116,35 @@ public:
   void imgsCallback(const sensor_msgs::ImageConstPtr& img_0, const sensor_msgs::ImageConstPtr& img_1);
   void depthCallback(const sensor_msgs::ImageConstPtr& img);
 
-  // to test planner offline
-  bool plan();
-
 };
 
 RosInterfacer::RosInterfacer(char** argv) : nh("ros_interface") , publisher(nh), it(nh),
-image0_sub(nh, "/tesse/left_cam/mono/image_raw", 1000), image1_sub(nh, "/tesse/right_cam/mono/image_raw", 1000),
+image0_sub(nh, std::string(argv[5]), 1000), image1_sub(nh, std::string(argv[6]), 1000),
 sync(MySyncPolicy(1000), image0_sub, image1_sub)
 {
 
   // sets the args
-  argv0 = argv[0];
-  argv1 = argv[1];
-  argv2 = argv[2];
-  argv3 = argv[3];
-
-  // Wait for 1 second just to be sure
-  // ros::Duration(1.0).sleep();
+  config_okvis = argv[1];
+  config_s8 = argv[2];
+  package_dir = argv[3];
+  imu_topic = argv[4];
+  cam0_topic = argv[5];
+  cam1_topic = argv[6];
+  depth_topic = argv[7];
     
-  google::InitGoogleLogging(argv0);
+  google::InitGoogleLogging(argv[0]);
   FLAGS_stderrthreshold = 0; // INFO: 0, WARNING: 1, ERROR: 2, FATAL: 3
   FLAGS_colorlogtostderr = 1;
 
   // read configuration file for OKVIS
-  std::string configFilename(argv1);
+  std::string configFilename(config_okvis);
 
   okvis::ViParametersReader viParametersReader(configFilename);
   viParametersReader.getParameters(parameters);
    
   // store output stuff (est trajectory, meshes computed by s8, dbow vocab)
   // everything should be in a folder named in_out in your ws
-  boost::filesystem::path package(argv2);
+  boost::filesystem::path package(package_dir);
   package.remove_filename().remove_filename(); // now path is your workspace
 
   std::string trajectoryDir = package.string() + "/in_out";
@@ -204,15 +198,14 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
   }
 
   // estimated trajectory directory
-  //writer = new okvis::TrajectoryOutput(trajectoryDir + "/okvis2-" + mode + "_trajectory.csv", false);
   writer = std::make_shared<okvis::TrajectoryOutput>(trajectoryDir + "/okvis2-" + mode + "_trajectory.csv", false);
 
 // =============== SUPEREIGHT ===============
 
   // Get all the supereight related settings from a file
-  const se::MapConfig mapConfig(argv3);
-  const se::OccupancyDataConfig dataConfig(argv3);
-  const se::PinholeCameraConfig cameraConfig(argv3);
+  const se::MapConfig mapConfig(config_s8);
+  const se::OccupancyDataConfig dataConfig(config_s8);
+  const se::PinholeCameraConfig cameraConfig(config_s8);
 
   // depth cam extrinsics. in the visensor, the depth camera frame is the same as the left camera
   const Eigen::Matrix4d T_SC = parameters.nCameraSystem.T_SC(0)->T();
@@ -226,21 +219,14 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
   // =============== PLANNER ===============
 
   // creates planner object, passing the collision checker as an argument
-  // planner = new Planner(std::bind(&SupereightInterface::detectCollision, se_interface, std::placeholders::_1 ));
   planner = std::make_shared<Planner>(std::bind(&SupereightInterface::detectCollision, se_interface, std::placeholders::_1 ));
 
 
   // =============== REGISTER CALLBACKS ===============
 
-  // okvis state estimation 
-  //okvis_estimator->setStateCallback([&](const okvis::State& _1, const okvis::TrackingState& _2){ publisher.processState(_1,_2); writer->processState(_1,_2); planner->processState(_1,_2);});
-
   // set path visualizer
   planner->setPathCallback(std::bind(&Publisher::publishPathAsCallback, &publisher, std::placeholders::_1));
 
-  // send keyframe-tied states to both supereight & publisher
-  // okvis_estimator->setKeyFrameStatesCallback([&](const State &_1, const TrackingState &_2, const StateVector &_3){ se_interface->stateUpdateCallback(_1,_2,_3); publisher.publishKeyframesAsCallback(_1,_2,_3); });
- 
   // send state to publisher, writer, planner. send state + graph (keyframes) to seinterface 
   // I'm not passing the landmarks
   okvis_estimator->setOptimisedGraphCallback([&](const okvis::State & _1, 
@@ -254,7 +240,7 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
                                planner->processState(_1,_2);
                                se_interface->stateUpdateCallback(_1,_2,_3);});
 
-  // visualize the submaps
+  //// visualize the submaps
   // mesh version:
   se_interface->setSubmapMeshesCallback(std::bind(&Publisher::publishSubmapMeshesAsCallback, &publisher, std::placeholders::_1));
   // block version:
@@ -262,10 +248,7 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
 
   // trigger plan() every time a new submap is created
   // se_interface->setReplanCallback(std::bind(&Planner::plan, planner));
-  
-  // do this if you want to visualize landmarks. TODO: edit optimisepublishmarginalize in threadedslam
-  // okvis_estimator->setLandmarksCallback(std::bind(&okvis::Publisher::publishLandmarksAsCallback,&publisher,std::placeholders::_1,std::placeholders::_2,std::placeholders::_3));
-  
+ 
   // =============== REGISTER ROS CALLBACKS =============== 
 
   sync.registerCallback(boost::bind(&RosInterfacer::imgsCallback, this, _1, _2));
@@ -274,10 +257,9 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
   // rostopic pub -1 /navgoal geometry_msgs/Pose  '{position:  {x: 0.0, y: 0.0, z: 1.0}, orientation: {x: 0.0,y: 0.0,z: 0.0,w: 1.0}}'
   navgoal_sub = nh.subscribe("/navgoal", 0, &RosInterfacer::navGoalCallback, this);
 
-  imu_sub = nh.subscribe("/tesse/imu/clean/imu", 10000, &RosInterfacer::imuCallback, this);
+  imu_sub = nh.subscribe(std::string(imu_topic), 10000, &RosInterfacer::imuCallback, this);
 
-  depth_sub = it.subscribe("/tesse/depth_cam/mono/image_raw", 1000, &RosInterfacer::depthCallback, this);
-
+  depth_sub = it.subscribe(std::string(depth_topic), 1000, &RosInterfacer::depthCallback, this);
 
 }
 
@@ -287,16 +269,6 @@ RosInterfacer::~RosInterfacer()
 // switched to smart pointers. dont need these anymore
 
 // delete in reverse order of creation
-
-// delete planner;
-
-// delete se_interface;
-
-// delete writer;
- 
-// delete okvis_estimator;
-
-// thread_okvis.join();
 
 }
 
@@ -309,12 +281,9 @@ int RosInterfacer::start()
   // start supereight processing
   se_interface->start();
 
-  // threaded inner loop (okvis processing + okvis & s8 display)
-  // std::thread thread_okvis(&RosInterfacer::slam_loop,this);
   thread_okvis = std::thread(&RosInterfacer::slam_loop,this);
-  // thread_okvis = new std::thread(&RosInterfacer::slam_loop,this);
 
-  // thread_okvis.detach();
+  thread_okvis.detach();
 
   return 0;
 
@@ -385,7 +354,7 @@ void RosInterfacer::imgsCallback(const sensor_msgs::ImageConstPtr& img_0, const 
                     const_cast<uint8_t*>(&img_1->data[0]), img_1->step);
 
 
-  // SHOULD I FILTER??
+  // SHOULD I FILTER?
     cv::Mat filtered_img_0;
     cv::Mat filtered_img_1;
 
@@ -422,21 +391,6 @@ void RosInterfacer::depthCallback(const sensor_msgs::ImageConstPtr& img){
 }
 
 
-bool RosInterfacer::plan(){
-
-  // to test planner, without okvis -> set start
-  Eigen::Vector3d r(0,0,0);
-  planner->setStart(r);
-
-  Eigen::Vector3d r_goal(0,0,2);
-
-  planner->setGoal(r_goal);
-
-  if(planner->plan()) return true;
-
-  return false; // if not solved
-}
-
 int main(int argc, char** argv) 
 {
   
@@ -445,10 +399,6 @@ int main(int argc, char** argv)
   RosInterfacer node(argv);
 
   node.start(); // starts slam & mapping thread
-
-  // to test planner offline
-  // if(node.plan()) std::cout << "\n\nPlanning succeeded! \n\n"; // planning (TODO)
-  // else std::cout << "\n\nPlanning failed! \n\n";
   
   ros::spin();
 

@@ -412,7 +412,6 @@ void SupereightInterface::processSupereightFrames() {
       submapLookup_.insert(std::make_pair(supereightFrame.keyframeId,
                                           std::prev(submaps_.end())));
 
-      active_submap_id = supereightFrame.keyframeId; // need this in collision checker
     }
 
     // =========== END CREATE NEW MAP ===========
@@ -425,14 +424,10 @@ void SupereightInterface::processSupereightFrames() {
     // Retrieve the active submap.
     auto &activeMap = submaps_.back();
 
-    // Integrate depth frame (prevent collision with planner on the active submap)
-    // std::unique_lock<std::mutex> submapLock(subMapMutex_, std::defer_lock);
-    // submapLock.lock();
     se::MapIntegrator integrator(
         *activeMap); //< ToDo -> Check how fast this constructor is
     integrator.integrateDepth(sensor_, supereightFrame.depthFrame,
                               supereightFrame.T_WC.T().cast<float>(), frame);
-    // submapLock.unlock();
     frame++;
 
     // const auto current_time = std::chrono::high_resolution_clock::now();
@@ -578,7 +573,7 @@ bool SupereightInterface::detectCollision(const ompl::base::State *state)
 {
   // with hash table, checking for circle around drone
 
-  if(submapLookup_read.empty()) return false;
+  // if(submapLookup_read.empty()) return false;
 
   const ompl::base::RealVectorStateSpace::StateType *pos = state->as<ompl::base::RealVectorStateSpace::StateType>();
 
@@ -622,11 +617,6 @@ bool SupereightInterface::detectCollision(const ompl::base::State *state)
         // iterate over submap ids (only the ones that contain current state!)
         if (!hashTable_read.count(box_coord)) return false;
         for (auto& id: hashTable_read[box_coord]) {
-          
-          // // if checking in active submap -> wait for mutex to unlock
-          // // unlocks when out of scope
-          // std::unique_lock<std::mutex> submapLock(subMapMutex_, std::defer_lock);
-          // if(id == active_submap_id) submapLock.lock();
 
           // transform state coords to check from world to map frame
           const Eigen::Matrix4d T_wf = submapPoseLookup_read[id].T(); // kf wrt world

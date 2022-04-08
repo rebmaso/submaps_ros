@@ -120,6 +120,12 @@ bool Planner::plan()
   // if(!started) return true;
 
   // set the fixed lookups for the collision checking func
+
+  if (se_interface->submapLookup_.empty()) {
+    std::cout << "Planner failed. No maps yet. \n";
+    return false;
+  }
+
   se_interface->fixReadLookups();
 
   std::cout << "\n\n(Planner) planning from: " 

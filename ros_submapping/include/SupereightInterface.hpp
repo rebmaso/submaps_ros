@@ -113,7 +113,6 @@ public:
     se::OccupancyMap<se::Res::Multi> map(mapConfig_, dataConfig_);
     loop_closure_redo_hashing = false;
     no_kf_yet = true;
-    active_submap_id = 1;
   };
 
   /**
@@ -237,6 +236,33 @@ bool detectCollision(const ompl::base::State *state);
 void fixReadLookups();
 
 
+// to hash a 3 int eigen vector
+struct SpatialHasher {
+  std::size_t operator()(const Eigen::Vector3i& a) const {
+      std::size_t h = 0;
+
+      // taken from matthias teschner 2003 collision
+      const int p1 = 73856093;
+      const int p2 = 19349663;
+      const int p3 = 83492791;
+      h = a[0]*p1 ^ a[1]*p2 ^ a[2]*p3;
+
+      return h;
+  }   
+};
+
+// To access maps
+std::unordered_map<uint64_t, SubmapList::iterator> submapLookup_; // use this to access submaps (index,submap)
+std::unordered_map<uint64_t, Transformation> submapPoseLookup_; // use this to access submap poses (index,pose)
+// spatial hash maps --> 1x1x1 boxes (maybe make them bigger)
+std::unordered_map<Eigen::Vector3i, std::unordered_set<int>, SpatialHasher> hashTable_; // a hash table for quick submap access (box coord, list of indexes)
+std::unordered_map<int, std::unordered_set<Eigen::Vector3i, SpatialHasher>> hashTableInverse_; // inverse access hash table (index, list of box coords)
+// Static lookups to use for collision checking (TODO make const?)
+std::unordered_map<uint64_t, SubmapList::iterator> submapLookup_read; 
+std::unordered_map<uint64_t, Transformation> submapPoseLookup_read;
+std::unordered_map<Eigen::Vector3i, std::unordered_set<int>, SpatialHasher> hashTable_read;
+
+
 private:
   /**
    * @brief      Converts an OpenCV Mat depth frame following the TUM convention
@@ -313,36 +339,6 @@ private:
   std::thread dataPreparationThread_; ///< Thread running data preparation loop.
   SubmapList submaps_;                ///< List containing all the submaps
 
-  // To access maps
-  std::unordered_map<uint64_t, SubmapList::iterator> submapLookup_; // use this to access submaps (index,submap)
-  std::unordered_map<uint64_t, Transformation> submapPoseLookup_; // use this to access submap poses (index,pose)
-  uint64_t active_submap_id; // to avoid segfaults. this id the id of the map that is currently being integrated
-
-  // to hash a 3 int eigen vector
-  struct SpatialHasher {
-    std::size_t operator()(const Eigen::Vector3i& a) const {
-        std::size_t h = 0;
-        
-        // // copied from boost combine hash func (xor)
-        // for (int it = 0; it < 3; it++) {
-        //     h ^= std::hash<int>{}(a[it])  + 0x9e3779b9 + (h << 6) + (h >> 2); 
-        // }
-
-        // copied from matthias teschner 2003 collision
-        const int p1 = 73856093;
-        const int p2 = 19349663;
-        const int p3 = 83492791;
-        h = a[0]*p1 ^ a[1]*p2 ^ a[2]*p3;
-
-        return h;
-    }   
-  };
-
-  // spatial hash maps --> 1x1x1 boxes (maybe make them bigger)
-  std::unordered_map<Eigen::Vector3i, std::unordered_set<int>, SpatialHasher> hashTable_; // a hash table for quick submap access (box coord, list of indexes)
-  std::unordered_map<int, std::unordered_set<Eigen::Vector3i, SpatialHasher>> hashTableInverse_; // inverse access hash table (index, list of box coords)
-
-  bool blocking_ = false;
   okvis::Time timeZero_;
 
   // callbacks
@@ -350,17 +346,14 @@ private:
   submapCallback submapCallback_; // to visualize in Publisher
   replanCallback replanCallback_; // to trigger new plan()
 
+  // flags
   // this flag is set when we get a loop closure frame, and lowered whenever we reassign submap hashes
   bool loop_closure_redo_hashing;
+  bool blocking_ = false;
 
   // We use this to store the active keyframe in predict(), to prepare the supereightframe
   State latestKeyframe;
   bool no_kf_yet;
-
-  // Static lookups to use for collision checking (TODO make const?)
-  std::unordered_map<uint64_t, SubmapList::iterator> submapLookup_read; 
-  std::unordered_map<uint64_t, Transformation> submapPoseLookup_read;
-  std::unordered_map<Eigen::Vector3i, std::unordered_set<int>, SpatialHasher> hashTable_read;
 
 };
 

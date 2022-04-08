@@ -60,7 +60,7 @@ Worlds that have been tested: garching_kitchen, maze.
 
 Run the localization & submapping pipeline
 
-`` roslaunch ros_submapping ros_submapping.launch ``
+`` roslaunch ros_submapping ros_submapping.launch config_okvis:="config_visensor_Tommaso.yaml" config_s8:="config_visensor_depth_Tommaso.yaml" imu_topic:="/firefly/vi_sensor/imu" cam0_topic:="/firefly/vi_sensor/left/image_raw" cam1_topic:="/firefly/vi_sensor/right/image_raw" depth_topic:="/firefly/vi_sensor/camera_depth/depth/disparity" ``
 
 To publish a waypoint:
 
@@ -70,13 +70,10 @@ If you want to publish a whole trajectory:
 
 `` rosrun ros_submapping waypoint_publisher ``
 
-To run rviz with custom config:
 
-`` rosrun rviz rviz -d ~/catkin_ws/src/rviz_rotors/rviz/config_1.rviz ``
+## To record a dataset from Gazebo
 
-
-## To run offline, on a dataset recorded in gazebo (faster)
-
+If you want to test the pipeline on a simulation, but don't have much compute power, you can run it on a gazebo bag.
 Launch the drone as before, and fly it around as you wish:
 
 `` roslaunch rotors_gazebo mav_hovering_example_with_vi_sensor.launch ``
@@ -97,7 +94,7 @@ Now you can play the bag. The pipeline will start tracking & mapping:
 
 ## To run on a dataset
 
-This project has also been tested on the uHumans2 dataset. I chose it because it's one of the few that provides both RGB-D and stereo data. Just download one of the bags (preferably one with no humans: the ones that end with _00h) following the guide [here](http://web.mit.edu/sparklab/datasets/uHumans2/). Play the bag, then launch the pipeline as usual:
+This project has also been tested on the uHumans2 dataset. I chose it because it's one of the few that provides both RGB-D and stereo data. Just download one of the bags (preferably one with no humans: the ones that end with _00h) following the guide [here](http://web.mit.edu/sparklab/datasets/uHumans2/). Play the bag, then launch the pipeline using the default args:
 
 `` roslaunch ros_submapping ros_submapping.launch ``
 
@@ -105,7 +102,7 @@ This project has also been tested on the uHumans2 dataset. I chose it because it
 
 Just publish a goal on the /navgoal topic like this:
 
-`` rostopic pub -1 /navgoal geometry_msgs/Pose  '{position:  {x: 4.0, y: 4.0, z: 1.0}, orientation: {x: 0.0,y: 0.0,z: 0.0,w: 1.0}}' ``
+`` rostopic pub -1 /navgoal geometry_msgs/Point  '{x: 1.0, y: 0.0, z: 0.0}' ``
 
 
 

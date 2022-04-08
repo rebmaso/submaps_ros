@@ -113,7 +113,7 @@ public:
   int start(); // starts the processing loop
 
   // ros callbacks
-  void navGoalCallback(const geometry_msgs::Pose &msg);
+  void navGoalCallback(const geometry_msgs::Point &msg);
   void imuCallback(const sensor_msgs::ImuConstPtr& msg);
   void imgsCallback(const sensor_msgs::ImageConstPtr& img_0, const sensor_msgs::ImageConstPtr& img_1);
   void depthCallback(const sensor_msgs::ImageConstPtr& img);
@@ -255,8 +255,6 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
 
   sync.registerCallback(boost::bind(&RosInterfacer::imgsCallback, this, _1, _2));
 
-  // to test this:
-  // rostopic pub -1 /navgoal geometry_msgs/Pose  '{position:  {x: 0.0, y: 0.0, z: 1.0}, orientation: {x: 0.0,y: 0.0,z: 0.0,w: 1.0}}'
   navgoal_sub = nh.subscribe("/navgoal", 0, &RosInterfacer::navGoalCallback, this);
 
   imu_sub = nh.subscribe(std::string(imu_topic), 10000, &RosInterfacer::imuCallback, this);
@@ -305,11 +303,9 @@ void RosInterfacer::slam_loop(){
 
 }
 
-void RosInterfacer::navGoalCallback(const geometry_msgs::Pose &msg) 
+void RosInterfacer::navGoalCallback(const geometry_msgs::Point &msg) 
 {
-  Eigen::Vector3d r(msg.position.x,msg.position.y,msg.position.z);
-
-  // Eigen::Quaterniond q(msg.orientation.w,msg.orientation.x,msg.orientation.y,msg.orientation.z);
+  Eigen::Vector3d r(msg.x,msg.y,msg.z);
   
   planner->setGoal(r);
 

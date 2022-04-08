@@ -109,7 +109,7 @@ void Planner::setGoal(const Eigen::Vector3d & r)
 
   //started = true;
 
-  plan(); // should plan whenever I set a new goal I get a new goal (returns after plan() is done)
+  //  plan(); // should plan whenever I set a new goal I get a new goal (returns after plan() is done)
 }
 
 bool Planner::plan()

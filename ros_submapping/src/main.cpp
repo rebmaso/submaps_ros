@@ -97,6 +97,8 @@ private:
   // ============= THREADS =============
 
   std::thread thread_okvis;
+
+  std::thread thread_planner;
   
 public:
 
@@ -310,6 +312,9 @@ void RosInterfacer::navGoalCallback(const geometry_msgs::Pose &msg)
   // Eigen::Quaterniond q(msg.orientation.w,msg.orientation.x,msg.orientation.y,msg.orientation.z);
   
   planner->setGoal(r);
+
+  thread_planner = std::thread(&Planner::plan,planner.get());
+  thread_planner.detach();
 }
 
 

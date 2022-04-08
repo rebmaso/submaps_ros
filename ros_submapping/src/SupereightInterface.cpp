@@ -620,6 +620,7 @@ bool SupereightInterface::detectCollision(const ompl::base::State *state)
         bool unmapped = true;
 
         // iterate over submap ids (only the ones that contain current state!)
+        if (!hashTable_read.count(box_coord)) return false;
         for (auto& id: hashTable_read[box_coord]) {
           
           // // if checking in active submap -> wait for mutex to unlock
@@ -634,6 +635,7 @@ bool SupereightInterface::detectCollision(const ompl::base::State *state)
           const Eigen::Vector3f r_map = r_map_hom.head<3>().cast<float>(); // take first 3 elems and cast to float
           
           // if voxel belongs to current submap
+          if (!submapLookup_read.count(id)) return false;
           if((*submapLookup_read[id])->contains(r_map))
           {
             unmapped = false;

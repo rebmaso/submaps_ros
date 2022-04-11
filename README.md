@@ -71,7 +71,7 @@ If you want to publish a whole trajectory:
 `` rosrun ros_submapping waypoint_publisher ``
 
 
-## To record a dataset from Gazebo
+## To record a bag from Gazebo
 
 If you want to test the pipeline on a simulation, but don't have much compute power, you can run it on a gazebo bag.
 Launch the drone as before, and fly it around as you wish:
@@ -92,11 +92,15 @@ Now you can play the bag. The pipeline will start tracking & mapping:
 
 `` rosbag play simulation.bag ``
 
-## To run on a dataset
+## To run on the uHumans2 dataset
 
 This project has also been tested on the uHumans2 dataset. I chose it because it's one of the few that provides both RGB-D and stereo data. Just download one of the bags (preferably one with no humans: the ones that end with _00h) following the guide [here](http://web.mit.edu/sparklab/datasets/uHumans2/). Play the bag, then launch the pipeline using the default args:
 
 `` roslaunch ros_submapping ros_submapping.launch ``
+
+# To run on our bag 
+
+`` roslaunch ros_submapping ros_submapping.launch config_okvis:="config_realsense_D455_Tommaso.yaml" config_s8:="config_realsense_D455_depth_Tommaso.yaml" imu_topic:="/imu0" cam0_topic:="/cam0" cam1_topic:="/cam1" depth_topic:="/depth0" ``
 
 ## Using the planner
 

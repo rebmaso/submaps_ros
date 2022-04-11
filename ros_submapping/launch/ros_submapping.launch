@@ -4,8 +4,8 @@
 
 <!-- launch file to kickstart estimation, mapping, navigation -->
   
-  <arg name="config_okvis" value="$(find ros_submapping)/config/config_uhumans_Tommaso.yaml" />
-  <arg name="config_s8" value="$(find ros_submapping)/config/config_uhumans_depth_Tommaso.yaml" />
+  <arg name="config_okvis" default="config_uhumans_Tommaso.yaml" />
+  <arg name="config_s8" default="config_uhumans_depth_Tommaso.yaml" />
   <arg name="package" value="$(find ros_submapping)"/> 
   <arg name="imu_topic" default="/tesse/imu/clean/imu"/>
   <arg name="cam0_topic" default="/tesse/left_cam/mono/image_raw"/>
@@ -14,7 +14,7 @@
   <arg name="rviz" default="true"/>
 
   <group ns="submapping">
-    <node name="main" pkg="ros_submapping" type="main" args="$(arg config_okvis) $(arg config_s8)  $(arg package) $(arg imu_topic) $(arg cam0_topic) $(arg cam1_topic) $(arg depth_topic)" output="screen" /> <!-- launch-prefix="xterm -e gdb - - args" -->
+    <node name="main" pkg="ros_submapping" type="main" args="$(find ros_submapping)/config/$(arg config_okvis) $(find ros_submapping)/config/$(arg config_s8)  $(arg package) $(arg imu_topic) $(arg cam0_topic) $(arg cam1_topic) $(arg depth_topic)" output="screen" /> <!-- launch-prefix="xterm -e gdb - - args" -->
   </group>
   
   <group if="$(arg rviz)">

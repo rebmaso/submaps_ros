@@ -86,8 +86,8 @@ DepthFrame SupereightInterface::depthMat2Image(const cv::Mat &inputDepth) {
   // Scale the input depth based on TUM convension
   // needed this bc dataset is 1 mt --> 5000. With the simulated depth cam we should already have 1mt -> 1
   cv::Mat depthScaled;
-  // inputDepth.convertTo(depthScaled, CV_32FC1, 1.f / 5000.f);
-  inputDepth.convertTo(depthScaled, CV_32FC1);
+  inputDepth.convertTo(depthScaled, CV_32FC1, 1.f / 5000.f);
+  // inputDepth.convertTo(depthScaled, CV_32FC1);
 
   // Initialise and copy
   DepthFrame output(depthScaled.size().width, depthScaled.size().height, 0.f);

@@ -128,7 +128,7 @@ bool Planner::plan()
 
   se_interface->fixReadLookups();
 
-  std::cout << "\n\n(Planner) planning from: " 
+  std::cout << "\n\nPlanning from: " 
   << (**start)[0] << " " 
   << (**start)[1] << " " 
   << (**start)[2] << " to: " 

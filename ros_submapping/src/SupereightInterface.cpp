@@ -264,69 +264,69 @@ void SupereightInterface::processSupereightFrames() {
       }
     }
 
-    // if a loop closure was detected, redo hashing
+    // // if a loop closure was detected, redo hashing
 
-    if(loop_closure_redo_hashing) {
+    // if(loop_closure_redo_hashing) {
 
-        std::cout << "Loop closure: re-assigning spatial hash table \n";
+    //     std::cout << "Loop closure: re-assigning spatial hash table \n";
 
-        // if we have a new keyframe & there's been a place recognition in the past frames --> reassign all locations
-        // TODO reallocate previous positions: only do this for the frames that were involved in the loop. (check new okvis commit)
+    //     // if we have a new keyframe & there's been a place recognition in the past frames --> reassign all locations
+    //     // TODO reallocate previous positions: only do this for the frames that were involved in the loop. (check new okvis commit)
 
-        loop_closure_redo_hashing = false; // lower the flag
+    //     loop_closure_redo_hashing = false; // lower the flag
     
-        for (auto &it: hashTableInverse_) {
+    //     for (auto &it: hashTableInverse_) {
 
-          auto id = it.first;
+    //       auto id = it.first;
                   
-          std::cout << "   Submap " << id <<  "\n";
+    //       std::cout << "   Submap " << id <<  "\n";
 
-          // remove every submap from the hash tables
-          for (auto &pos : hashTableInverse_[id]) // iterate over boxes for each keyframe
-          {
-            hashTable_[pos].erase(id); // remove id from box
-            hashTableInverse_[id].erase(pos); // remove box from id
-          }          
+    //       // remove every submap from the hash tables
+    //       for (auto &pos : hashTableInverse_[id]) // iterate over boxes for each keyframe
+    //       {
+    //         hashTable_[pos].erase(id); // remove id from box
+    //         hashTableInverse_[id].erase(pos); // remove box from id
+    //       }          
           
-          const auto T_WM = submapPoseLookup_[id];
-          const Eigen::Matrix4d Tf = T_WM.T();
+    //       const auto T_WM = submapPoseLookup_[id];
+    //       const Eigen::Matrix4d Tf = T_WM.T();
 
-          // we do it this way even if it means possible floor values that are the same. but if we added +1
-          // gaps could occur. takes a bit longer to allocate, but spare more time in submap query at planning time
-          for (float x = -1; x < 5; x+=0.5) // 0 6
-          {
-            for (float y = -3; y < 3; y+=0.5) // -4 4
-            {
-              for (float z = -3; z < 3; z+=0.5) // -4 4
-              {
+    //       // we do it this way even if it means possible floor values that are the same. but if we added +1
+    //       // gaps could occur. takes a bit longer to allocate, but spare more time in submap query at planning time
+    //       for (float x = -1; x < 5; x+=0.5) // 0 6
+    //       {
+    //         for (float y = -3; y < 3; y+=0.5) // -4 4
+    //         {
+    //           for (float z = -3; z < 3; z+=0.5) // -4 4
+    //           {
                 
-                // get offset value (this pos is in kf frame)
-                Eigen::Vector4d pos_kf(x,y,z,1);
+    //             // get offset value (this pos is in kf frame)
+    //             Eigen::Vector4d pos_kf(x,y,z,1);
 
-                // transform into world frame
-                Eigen::Vector4d pos_world;
-                pos_world = Tf * pos_kf;
+    //             // transform into world frame
+    //             Eigen::Vector4d pos_world;
+    //             pos_world = Tf * pos_kf;
 
-                // floor transformed value
-                Eigen::Vector3i pos_floor;
-                for (int i = 0 ; i < 3 ; i++)
-                {
-                  pos_floor(i) = (int)(floor(pos_world(i)));
-                }
+    //             // floor transformed value
+    //             Eigen::Vector3i pos_floor;
+    //             for (int i = 0 ; i < 3 ; i++)
+    //             {
+    //               pos_floor(i) = (int)(floor(pos_world(i)));
+    //             }
 
-                // add to hashtable 
-                hashTable_[pos_floor].insert(id);
+    //             // add to hashtable 
+    //             hashTable_[pos_floor].insert(id);
                 
-                // add pos to the inverse hash table
-                hashTableInverse_[id].insert(pos_floor);
-              }
-            }
-          }
+    //             // add pos to the inverse hash table
+    //             hashTableInverse_[id].insert(pos_floor);
+    //           }
+    //         }
+    //       }
 
           
 
-        }
-      }
+    //     }
+    // }
 
     // Chech whether we need to create a new submap. --> integrate in new or existing map?
     // this is the latest "active" keyframe id
@@ -335,55 +335,58 @@ void SupereightInterface::processSupereightFrames() {
     // =========== CREATE NEW MAP ===========
 
     // if we have a new keyframe --> create new map (and save previous kf map)
+    // avoid if the submap tied to this kf already exists.
+    // this happens if the kf that has most covisibility is one for which we already created a map.
+    // in that case, we just integrate iven if the active kf id is different from the previous
 
     static unsigned int submap_counter = 0;
-    if (supereightFrame.keyframeId != prevKeyframeId || submaps_.empty()) { 
+    if ((supereightFrame.keyframeId != prevKeyframeId || submaps_.empty()) && !submapLookup_.count(supereightFrame.keyframeId)) { 
       
       submap_counter ++;
       std::cout << "Submap no. " << submap_counter << " (kf Id: " << supereightFrame.keyframeId << ")" << "\n";
 
       
-      // ======= hashing for newest keyframe =======
+      // // ======= hashing for newest keyframe =======
         
-      const auto id = supereightFrame.keyframeId;
-      const auto T_WM = submapPoseLookup_[id];
+      // const auto id = supereightFrame.keyframeId;
+      // const auto T_WM = submapPoseLookup_[id];
 
-      const Eigen::Matrix4d Tf = T_WM.T();
+      // const Eigen::Matrix4d Tf = T_WM.T();
 
-      for (float x = -1; x < 5; x+=0.5)
-      {
-        for (float y = -3; y < 3; y+=0.5)
-        {
-          for (float z = -3; z < 3; z+=0.5)
-          {
+      // for (float x = -1; x < 5; x+=0.5)
+      // {
+      //   for (float y = -3; y < 3; y+=0.5)
+      //   {
+      //     for (float z = -3; z < 3; z+=0.5)
+      //     {
             
-            // get offset value (this pos is in kf frame)
-            Eigen::Vector4d pos_kf(x,y,z,1);
+      //       // get offset value (this pos is in kf frame)
+      //       Eigen::Vector4d pos_kf(x,y,z,1);
 
-            // transform into world frame
-            Eigen::Vector4d pos_world;
-            pos_world = Tf * pos_kf;
+      //       // transform into world frame
+      //       Eigen::Vector4d pos_world;
+      //       pos_world = Tf * pos_kf;
 
-            // floor transformed value
-            Eigen::Vector3i pos_floor;
-            for (int i = 0 ; i < 3 ; i++)
-            {
-              pos_floor(i) = (int)(floor(pos_world(i)));
-            }
+      //       // floor transformed value
+      //       Eigen::Vector3i pos_floor;
+      //       for (int i = 0 ; i < 3 ; i++)
+      //       {
+      //         pos_floor(i) = (int)(floor(pos_world(i)));
+      //       }
 
-            // std::cout << "   box \n " << pos_floor <<  "\n";
+      //       // std::cout << "   box \n " << pos_floor <<  "\n";
 
-            // add to hashtable 
-            hashTable_[pos_floor].insert(id);
+      //       // add to hashtable 
+      //       hashTable_[pos_floor].insert(id);
 
-            // add pos to the inverse hash table
-            hashTableInverse_[id].insert(pos_floor);
+      //       // add pos to the inverse hash table
+      //       hashTableInverse_[id].insert(pos_floor);
 
-          }
-        }
-      }
+      //     }
+      //   }
+      // }
 
-      // ======= end hashing =======
+      // // ======= end hashing =======
 
       // Quick hack for Tomaso, save the finished map using its current pose.
       if (!submaps_.empty()) {

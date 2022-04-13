@@ -35,13 +35,15 @@ struct OkvisUpdate {
   State latestState;
   StateVector keyframeStates;
   okvis::Time timestamp;
+  uint64_t currentKeyframe;
   bool isKeyframe;
   OkvisUpdate(const State &latestState = State(),
               const StateVector &keyframeStates = StateVector(),
               const okvis::Time &timestamp = okvis::Time(),
-              const bool isKeyframe = false)
+              const bool isKeyframe = false,
+              const uint64_t currentKeyframe = 1)
       : latestState(latestState), keyframeStates(keyframeStates),
-        timestamp(timestamp), isKeyframe(isKeyframe){};
+        timestamp(timestamp), isKeyframe(isKeyframe), currentKeyframe(currentKeyframe){};
 };
 
 typedef okvis::threadsafe::ThreadSafeQueue<OkvisUpdate> StateUpdatesQueue;
@@ -112,7 +114,6 @@ public:
 
     se::OccupancyMap<se::Res::Multi> map(mapConfig_, dataConfig_);
     loop_closure_redo_hashing = false;
-    no_kf_yet = true;
   };
 
   /**
@@ -350,10 +351,6 @@ private:
   // this flag is set when we get a loop closure frame, and lowered whenever we reassign submap hashes
   bool loop_closure_redo_hashing;
   bool blocking_ = false;
-
-  // We use this to store the active keyframe in predict(), to prepare the supereightframe
-  State latestKeyframe;
-  bool no_kf_yet;
 
 };
 

@@ -86,8 +86,8 @@ DepthFrame SupereightInterface::depthMat2Image(const cv::Mat &inputDepth) {
   // Scale the input depth based on TUM convension
   // needed this bc dataset is 1 mt --> 5000. With the simulated depth cam we should already have 1mt -> 1
   cv::Mat depthScaled;
-  inputDepth.convertTo(depthScaled, CV_32FC1, 1.f / 5000.f);
-  // inputDepth.convertTo(depthScaled, CV_32FC1);
+  // inputDepth.convertTo(depthScaled, CV_32FC1, 1.f / 5000.f);
+  inputDepth.convertTo(depthScaled, CV_32FC1);
 
   // Initialise and copy
   DepthFrame output(depthScaled.size().width, depthScaled.size().height, 0.f);
@@ -147,21 +147,23 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
   if (initialStateData.keyframeStates.empty())
     return false;
 
-  // Retrieve the Pose of the latest inserted Keyframe (active KF tied to initial state). ToDo -> This is only
-  // correct when the vector has been created withopur altering the KF order
-  // const auto &T_WS0 = initialStateData.keyframeStates.rbegin()->T_WS; --> this does not work anymore! unordered vector!
-  // let's handle it like this:
+  // Retrieve the Pose of the current active kf (the one with most co observations)
 
   Transformation T_WS0;
-  if (initialStateData.isKeyframe || no_kf_yet) {
-    no_kf_yet = false;
+
+  // if current frame is a keyframe (faster)
+  if (initialStateData.isKeyframe) {
     T_WS0 = initialStateData.latestState.T_WS;
     keyframeId = initialStateData.latestState.id.value();
-    latestKeyframe = initialStateData.latestState;
   }
+  // else, and only if submaplookup contains id (older keyframe is the one w most co obs), check inside it for pose
+  else if (submapPoseLookup_.count(initialStateData.currentKeyframe)) { 
+    keyframeId = initialStateData.currentKeyframe;
+    T_WS0 = submapPoseLookup_[keyframeId];
+  }
+  // this happens if the first frame is not a keyframe (should not happen)
   else {
-    T_WS0 = latestKeyframe.T_WS;
-    keyframeId = latestKeyframe.id.value();
+    throw std::runtime_error("FECK!");
   }
 
   T_WC0 = T_WS0 * T_SC_;
@@ -332,118 +334,126 @@ void SupereightInterface::processSupereightFrames() {
     // this is the latest "active" keyframe id
     static uint64_t prevKeyframeId = supereightFrame.keyframeId;
 
-    // =========== CREATE NEW MAP ===========
+    // =========== Current KF has changed ===========
 
-    // if we have a new keyframe --> create new map (and save previous kf map)
-    // avoid if the submap tied to this kf already exists.
-    // this happens if the kf that has most covisibility is one for which we already created a map.
-    // in that case, we just integrate iven if the active kf id is different from the previous
+    // Finish up last map (hash + savemesh), create new map is keyframe is new
+    // We do just the first part if the keyframe is not a new one but somehow has got more coobs
 
-    static unsigned int submap_counter = 0;
-    if ((supereightFrame.keyframeId != prevKeyframeId || submaps_.empty()) && !submapLookup_.count(supereightFrame.keyframeId)) { 
+    // current kf has changed
+    if (supereightFrame.keyframeId != prevKeyframeId || submaps_.empty()) { 
       
-      submap_counter ++;
-      std::cout << "Submap no. " << submap_counter << " (kf Id: " << supereightFrame.keyframeId << ")" << "\n";
+      // hash (can be re-hash) & save map we just finished integrating
+      // 4 safety, check that submap exists in lookup
+      if (!submaps_.empty() && submapLookup_.count(prevKeyframeId)) {
 
-      
-      // // ======= hashing for newest keyframe =======
-        
-      // const auto id = supereightFrame.keyframeId;
-      // const auto T_WM = submapPoseLookup_[id];
+        std::cout << "Completed integrating submap " << prevKeyframeId << "\n";
 
-      // const Eigen::Matrix4d Tf = T_WM.T();
+        // TODO hash
 
-      // for (float x = -1; x < 5; x+=0.5)
-      // {
-      //   for (float y = -3; y < 3; y+=0.5)
-      //   {
-      //     for (float z = -3; z < 3; z+=0.5)
-      //     {
-            
-      //       // get offset value (this pos is in kf frame)
-      //       Eigen::Vector4d pos_kf(x,y,z,1);
-
-      //       // transform into world frame
-      //       Eigen::Vector4d pos_world;
-      //       pos_world = Tf * pos_kf;
-
-      //       // floor transformed value
-      //       Eigen::Vector3i pos_floor;
-      //       for (int i = 0 ; i < 3 ; i++)
-      //       {
-      //         pos_floor(i) = (int)(floor(pos_world(i)));
-      //       }
-
-      //       // std::cout << "   box \n " << pos_floor <<  "\n";
-
-      //       // add to hashtable 
-      //       hashTable_[pos_floor].insert(id);
-
-      //       // add pos to the inverse hash table
-      //       hashTableInverse_[id].insert(pos_floor);
-
-      //     }
-      //   }
-      // }
-
-      // // ======= end hashing =======
-
-      // Quick hack for Tomaso, save the finished map using its current pose.
-      if (!submaps_.empty()) {
         const std::string meshFilename =
             meshesPath_ + "/" + std::to_string(prevKeyframeId) + ".ply";
 
-        // Retrieve the respective KF pose from the lookup we just updated by reading seframes
-        const auto T_WF = submapPoseLookup_[prevKeyframeId];
-
-        // SAVE THE MESH OF THE MAP WE JUST FINISHED INTEGRATING
-        // std::cout << "(seinterface) saving mesh as ply... \n";
-        submaps_.back()->saveMesh(meshFilename);
+        (*(submapLookup_[prevKeyframeId]))->saveMesh(meshFilename);
                 
-        // call submap visualizer & plan() (outside this class) each time we save a new map
+        // call submap visualizer
         publishSubmaps(); 
-        replan();
       }
 
-      // Create a new submap and reset frame counter
-      submaps_.emplace_back(
-          new se::OccupancyMap<se::Res::Multi>(mapConfig_, dataConfig_));
-      frame = 0;
+      // If kf is new --> create new map
+      static unsigned int submap_counter = 0;
+      if (!submapLookup_.count(supereightFrame.keyframeId))
+      {
+        submap_counter ++;
+        std::cout << "New submap no. " << submap_counter << " (kf Id: " << supereightFrame.keyframeId << ")" << "\n";
 
-      // Add the (keyframe Id, iterator) pair in the submapLookup_
-      // We are adding the map that is curently being integrated (submaps back)
-      submapLookup_.insert(std::make_pair(supereightFrame.keyframeId,
-                                          std::prev(submaps_.end())));
+        
+        // // ======= hashing for newest keyframe =======
+          
+        // const auto id = supereightFrame.keyframeId;
+        // const auto T_WM = submapPoseLookup_[id];
 
-    }
+        // const Eigen::Matrix4d Tf = T_WM.T();
 
-    // =========== END CREATE NEW MAP ===========
+        // for (float x = -1; x < 5; x+=0.5)
+        // {
+        //   for (float y = -3; y < 3; y+=0.5)
+        //   {
+        //     for (float z = -3; z < 3; z+=0.5)
+        //     {
+              
+        //       // get offset value (this pos is in kf frame)
+        //       Eigen::Vector4d pos_kf(x,y,z,1);
 
-    // INTEGRATE IN CURRENT ("active") MAP (can be the map we just created)
+        //       // transform into world frame
+        //       Eigen::Vector4d pos_world;
+        //       pos_world = Tf * pos_kf;
 
-    // Prepare for next iteration
-    prevKeyframeId = supereightFrame.keyframeId;
+        //       // floor transformed value
+        //       Eigen::Vector3i pos_floor;
+        //       for (int i = 0 ; i < 3 ; i++)
+        //       {
+        //         pos_floor(i) = (int)(floor(pos_world(i)));
+        //       }
 
-    // Retrieve the active submap.
-    auto &activeMap = submaps_.back();
+        //       // std::cout << "   box \n " << pos_floor <<  "\n";
 
-    se::MapIntegrator integrator(
-        *activeMap); //< ToDo -> Check how fast this constructor is
-    integrator.integrateDepth(sensor_, supereightFrame.depthFrame,
-                              supereightFrame.T_WC.T().cast<float>(), frame);
-    frame++;
+        //       // add to hashtable 
+        //       hashTable_[pos_floor].insert(id);
 
-    // const auto current_time = std::chrono::high_resolution_clock::now();
-    // // Some couts, remove when done debugging.
-    // std::cout << "Processing delay\t"
-    //           << (std::chrono::duration_cast<std::chrono::milliseconds>(
-    //                   current_time - start_time))
-    //                  .count()
-    //           << "\t Integrated frames: " << frame
-    //           << "\tS8 Fr: " << supereightFrames_.Size()
-    //           << "\t submaps: " << submaps_.size()
-    //           << "\t Okvis Upd: " << stateUpdates_.Size()
-    //           << "\tDepth Fr: " << depthMeasurements_.Size() << std::endl;
+        //       // add pos to the inverse hash table
+        //       hashTableInverse_[id].insert(pos_floor);
+
+        //     }
+        //   }
+        // }
+
+        // // ======= end hashing =======
+
+        // Create a new submap and reset frame counter
+        submaps_.emplace_back(
+            new se::OccupancyMap<se::Res::Multi>(mapConfig_, dataConfig_));
+        frame = 0;
+
+        // Add the (keyframe Id, iterator) pair in the submapLookup_
+        // We are adding the map that is curently being integrated (submaps back)
+        submapLookup_.insert(std::make_pair(supereightFrame.keyframeId,
+                                            std::prev(submaps_.end())));
+
+        }
+
+      }
+
+      // =========== END Current KF has changed ===========
+
+      // Integrate in the map tied to current keyframe
+
+      // Retrieve the active submap.
+      // auto &activeMap = submaps_.back(); // not good anymore
+      // can use the lookup bc every time a new submap is created, its also inserted there
+      auto &activeMap = *(submapLookup_[supereightFrame.keyframeId]);
+
+      se::MapIntegrator integrator(
+          *activeMap); //< ToDo -> Check how fast this constructor is
+      integrator.integrateDepth(sensor_, supereightFrame.depthFrame,
+                                supereightFrame.T_WC.T().cast<float>(), frame);
+      frame++;
+
+      std::cout << "Integrating in submap " << supereightFrame.keyframeId << "\n";
+
+      // Prepare for next iteration
+      prevKeyframeId = supereightFrame.keyframeId;
+
+      // const auto current_time = std::chrono::high_resolution_clock::now();
+      // // Some couts, remove when done debugging.
+      // std::cout << "Processing delay\t"
+      //           << (std::chrono::duration_cast<std::chrono::milliseconds>(
+      //                   current_time - start_time))
+      //                  .count()
+      //           << "\t Integrated frames: " << frame
+      //           << "\tS8 Fr: " << supereightFrames_.Size()
+      //           << "\t submaps: " << submaps_.size()
+      //           << "\t Okvis Upd: " << stateUpdates_.Size()
+      //           << "\tDepth Fr: " << depthMeasurements_.Size() << std::endl;
 
   }
 }
@@ -529,14 +539,17 @@ bool SupereightInterface::stateUpdateCallback(
     std::shared_ptr<const okvis::AlignedVector<State>> keyframeStates) {
 
   // Assemble OKVIS updates in a struct and push in the corresponding Queue.
-  OkvisUpdate latestStateData(latestState, *keyframeStates,
+  OkvisUpdate latestStateData(latestState, 
+                              *keyframeStates,
                               latestState.timestamp,
-                              latestTrackingState.isKeyframe);
+                              latestTrackingState.isKeyframe,
+                              latestTrackingState.currentKeyframeId.value());
   const size_t stateUpdateQueue = 100; ///< 5 seconds of data at 20Hz.
   if (blocking_) {
     const bool result =
         stateUpdates_.PushBlockingIfFull(latestStateData, stateUpdateQueue);
     cvNewSensorMeasurements_.notify_one();
+
     // if a place is recognised, we must reassign all submap hashes (we do so in processseframe)
     if(latestTrackingState.recognisedPlace) loop_closure_redo_hashing = true; // raise the flag
     return result;

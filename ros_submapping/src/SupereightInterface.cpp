@@ -166,6 +166,8 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
     throw std::runtime_error("FECK!");
   }
 
+  std::cout << "T_WS0 \n" << T_WS0.T() << "\n";
+
   T_WC0 = T_WS0 * T_SC_;
 
   // KF poses. 
@@ -259,6 +261,8 @@ void SupereightInterface::processSupereightFrames() {
       // Check If Id exists.
       if (submapPoseLookup_.count(id)) {
         // Update.
+        std::cout << "id " << id << "\n";
+        std::cout << "T_WM \n" << T_WM.T() << "\n";
         submapPoseLookup_[id] = T_WM;
       } else {
         // Insert
@@ -439,6 +443,7 @@ void SupereightInterface::processSupereightFrames() {
       frame++;
 
       std::cout << "Integrating in submap " << supereightFrame.keyframeId << "\n";
+      // std::cout << "Depth frame pose \n" << supereightFrame.T_WC.T().cast<float>() << "\n";
 
       // Prepare for next iteration
       prevKeyframeId = supereightFrame.keyframeId;

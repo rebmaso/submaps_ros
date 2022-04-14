@@ -159,14 +159,14 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
   // else, and only if submaplookup contains id (older keyframe is the one w most co obs), check inside it for pose
   else if (submapPoseLookup_.count(initialStateData.currentKeyframe)) { 
     keyframeId = initialStateData.currentKeyframe;
-    T_WS0 = submapPoseLookup_[keyframeId];
+    T_WS0 = submapPoseLookup_[keyframeId] * T_CS_; // express in sensor frame
   }
   // this happens if the first frame is not a keyframe (should not happen)
   else {
     throw std::runtime_error("FECK!");
+    // we en up here if the processseframe thread does not add the kf to the pose lookup in time... 
+    // if it happens, maybe insert pose right here, after if (initialStateData.isKeyframe) {
   }
-
-  std::cout << "T_WS0 \n" << T_WS0.T() << "\n";
 
   T_WC0 = T_WS0 * T_SC_;
 
@@ -261,8 +261,6 @@ void SupereightInterface::processSupereightFrames() {
       // Check If Id exists.
       if (submapPoseLookup_.count(id)) {
         // Update.
-        std::cout << "id " << id << "\n";
-        std::cout << "T_WM \n" << T_WM.T() << "\n";
         submapPoseLookup_[id] = T_WM;
       } else {
         // Insert
@@ -352,7 +350,9 @@ void SupereightInterface::processSupereightFrames() {
 
         std::cout << "Completed integrating submap " << prevKeyframeId << "\n";
 
-        // TODO hash
+        // do the spatial hashing
+        // do it threaded?
+        doSpatialHashing(*(submapLookup_[prevKeyframeId]));
 
         const std::string meshFilename =
             meshesPath_ + "/" + std::to_string(prevKeyframeId) + ".ply";
@@ -360,6 +360,7 @@ void SupereightInterface::processSupereightFrames() {
         (*(submapLookup_[prevKeyframeId]))->saveMesh(meshFilename);
                 
         // call submap visualizer
+        // do it threaded?
         publishSubmaps(); 
       }
 
@@ -432,7 +433,6 @@ void SupereightInterface::processSupereightFrames() {
       // Integrate in the map tied to current keyframe
 
       // Retrieve the active submap.
-      // auto &activeMap = submaps_.back(); // not good anymore
       // can use the lookup bc every time a new submap is created, its also inserted there
       auto &activeMap = *(submapLookup_[supereightFrame.keyframeId]);
 
@@ -509,8 +509,7 @@ void SupereightInterface::pushSuperEightData() {
 
 bool SupereightInterface::start() {
   
-  // do not remove this cout!!!
-  std::cout << "\n\nStarting supereight processing... \n\n"; // segfault without this cout (??)
+  std::cout << "\n\nStarting supereight processing... \n\n";
 
   timeZero_ = okvis::Time::now();
 
@@ -685,13 +684,144 @@ void SupereightInterface::fixReadLookups()
   hashTable_read = hashTable_;
 }
 
-void SupereightInterface::replan() 
-{
-  if(replanCallback_) {
-    // calls plan() function in Planner -> replans with new start, same goal & new map
-    std::thread publish(replanCallback_);
-    publish.detach();
-  }
+void SupereightInterface::doSpatialHashing(std::shared_ptr<se::OccupancyMap<se::Res::Multi>> map_ptr) 
+{ 
+  // bounding box dims (min, max)
+  // Remember: these are in voxel coords!
+  // this probably takes a lot of time... thread?
+
+  Eigen::Vector3i min_box(0,0,0);
+  Eigen::Vector3i max_box(0,0,0);
+
+  // ======== get bounding box dimensions (in map frame) ========
+
+  auto octree_ptr = map_ptr->getOctree();
+
+  for (auto octant_it = se::LeavesIterator<OctreeT>(octree_ptr.get()); octant_it != se::LeavesIterator<OctreeT>(); ++octant_it) {
+        const auto octant_ptr = *octant_it;
+
+        // first, check if octant (node or block, dont care at this stage), is completely inside current bounds
+        // get the two min and max corners, and check them against bounds
+        Eigen::Vector3i corner_min = octant_ptr->getCoord(); 
+        Eigen::Vector3i corner_max = corner_min + Eigen::Vector3i::Constant(se::octantops::octant_to_size<OctreeT>(octant_ptr));
+        bool inside_octant = true;
+        for (int i = 0; i < 3; i++) {
+          // if not inside bounds
+          if (corner_min(i) < min_box(i) || corner_max(i) > max_box(i))
+          {
+            inside_octant = false;
+            break;
+          }
+        }
+        // if octant is completely inside --> skip octant
+        if(inside_octant) continue;
+
+        int node_size;
+        int node_scale;
+        
+        // Differentiate between block and node processing
+        if (octant_ptr->isBlock()) {
+            // If the leaf is a block we'll need to iterate over all voxels at the current scale
+            const Eigen::Vector3i block_coord = octant_ptr->getCoord();
+            const BlockType* block_ptr = static_cast<const BlockType*>(octant_ptr);
+            // Find current scale of the block leaves and their size
+            const int node_scale = block_ptr->getCurrentScale();
+            const int node_size  = 1 << node_scale;
+
+            // iterate through voxels inside block
+            for (int x = 0; x < BlockType::getSize(); x += node_size) {
+                for (int y = 0; y < BlockType::getSize(); y += node_size) {
+                    for (int z = 0; z < BlockType::getSize(); z += node_size) {
+                      
+                      // if the voxel is unobserved, skip
+                      const auto data = block_ptr->getData();
+                      if (data.observed == false) continue;
+
+                      const Eigen::Vector3i node_coord = block_coord + Eigen::Vector3i(x, y, z);
+
+                      // // corners: array of 8 3d coordinates
+                      // Eigen::Vector3f node_corners[8];
+                      // node_corners[0] = node_coord.cast<float>();
+                      // node_corners[1] = (node_coord + Eigen::Vector3i(node_size, 0, 0)).cast<float>();
+                      // node_corners[2] = (node_coord + Eigen::Vector3i(0, node_size, 0)).cast<float>();
+                      // node_corners[3] = (node_coord + Eigen::Vector3i(node_size, node_size, 0)).cast<float>();
+                      // node_corners[4] = (node_coord + Eigen::Vector3i(0, 0, node_size)).cast<float>();
+                      // node_corners[5] = (node_coord + Eigen::Vector3i(node_size, 0, node_size)).cast<float>();
+                      // node_corners[6] = (node_coord + Eigen::Vector3i(0, node_size, node_size)).cast<float>();
+                      // node_corners[7] = (node_coord + Eigen::Vector3i(node_size, node_size, node_size)).cast<float>();
+
+                      // Can I just check for lower and upper bound like this? (Like I did for the octant)
+                      // If so, delete useless corners
+                      Eigen::Vector3i voxel_corner_min = node_coord;
+                      Eigen::Vector3i voxel_corner_max = voxel_corner_min + Eigen::Vector3i(node_size, node_size, node_size);
+                      for (int i = 0; i < 3; i++) {
+                        // if not inside bounds, update either max or min
+                        if (voxel_corner_min(i) < min_box(i))
+                        {
+                          min_box(i) = voxel_corner_min(i);
+                        }
+                        if (voxel_corner_max(i) > max_box(i))
+                        {
+                          max_box(i) = voxel_corner_max(i);
+                        }
+                      }
+
+                      // ... or, just check for voxel coord. not for all corners ?
+                      // faster, but with the adaptive res thing, could mean that the voxels are huge and
+                      // we are actually making huge errors, not 20 cm errors
+
+                    } // z
+                } // y
+            } // x
+         }
+        else { // if is node
+            
+          const auto data = static_cast<typename OctreeT::NodeType*>(octant_ptr)->getData();
+          if (data.observed == false) continue;
+
+          node_size = static_cast<typename OctreeT::NodeType*>(octant_ptr)->getSize();
+
+          // Since we don't care about the node scale, just set it to a number that will result in
+          // a gray color when saving the mesh.
+          // node_scale = 7;
+
+          const Eigen::Vector3i node_coord = octant_ptr->getCoord();
+          
+          // // Get the coordinates of the octant vertices.
+          // Eigen::Vector3f node_corners[8];
+          // node_corners[0] = node_coord.cast<float>();
+          // node_corners[1] = (node_coord + Eigen::Vector3i(node_size, 0, 0)).cast<float>();
+          // node_corners[2] = (node_coord + Eigen::Vector3i(0, node_size, 0)).cast<float>();
+          // node_corners[3] = (node_coord + Eigen::Vector3i(node_size, node_size, 0)).cast<float>();
+          // node_corners[4] = (node_coord + Eigen::Vector3i(0, 0, node_size)).cast<float>();
+          // node_corners[5] = (node_coord + Eigen::Vector3i(node_size, 0, node_size)).cast<float>();
+          // node_corners[6] = (node_coord + Eigen::Vector3i(0, node_size, node_size)).cast<float>();
+          // node_corners[7] = (node_coord + Eigen::Vector3i(node_size, node_size, node_size)).cast<float>();
+
+          // Can I just check for lower and upper bound like this? (Like I did for the octant)
+          // If so, delete useless corners
+          Eigen::Vector3i node_corner_min = node_coord;
+          Eigen::Vector3i node_corner_max = node_corner_min + Eigen::Vector3i(node_size, node_size, node_size);
+          for (int i = 0; i < 3; i++) {
+            // if not inside bounds, update either max or min
+            if (node_corner_min(i) < min_box(i))
+            {
+              min_box(i) = node_corner_min(i);
+            }
+            if (node_corner_max(i) > max_box(i))
+            {
+              max_box(i) = node_corner_max(i);
+            }
+          }
+
+        }
+    }
+
+  std::cout << "Map dimensions: \n" << min_box << "\n" << max_box << "\n";
+
+  // TODO: convert to meter coords and do actual hashing.
+  // Check first if there already is an entry in 
 }
+
 
 

@@ -30,6 +30,8 @@ typedef okvis::kinematics::Transformation Transformation;
 typedef okvis::TrackingState TrackingState;
 typedef okvis::AlignedVector<okvis::State> StateVector;
 typedef okvis::State State;
+typedef se::Octree<se::Data<se::Field::Occupancy, se::Colour::Off, se::Semantics::Off>, se::Res::Multi, 8> OctreeT;
+typedef typename OctreeT::BlockType BlockType;
 
 struct OkvisUpdate {
   State latestState;
@@ -90,9 +92,6 @@ typedef std::function<void(std::unordered_map<uint64_t, Transformation>)> submap
 
 typedef std::function<void(std::unordered_map<uint64_t, Transformation>, std::unordered_map<uint64_t, SubmapList::iterator>)> submapCallback;
 
-// replan callback typedef
-typedef std::function<bool()> replanCallback;
-
 class SupereightInterface {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -109,7 +108,7 @@ public:
                       const se::OccupancyDataConfig &dataConfig,
                       const Eigen::Matrix4d &T_SC,
                       const std::string &meshesPath)
-      : T_SC_(T_SC), sensor_(cameraConfig), mapConfig_(mapConfig),
+      : T_SC_(T_SC), T_CS_(T_SC.inverse()), sensor_(cameraConfig), mapConfig_(mapConfig),
         dataConfig_(dataConfig), meshesPath_(meshesPath) {
 
     se::OccupancyMap<se::Res::Multi> map(mapConfig_, dataConfig_);
@@ -205,11 +204,6 @@ void setSubmapMeshesCallback(const submapMeshesCallback &submapMeshesCallback) {
    */
 void setSubmapCallback(const submapCallback &submapCallback) { submapCallback_ = submapCallback; }
 
-/**
-   * @brief      Set function that replans whenever a new submap is added
-   *
-   */
-void setReplanCallback(const replanCallback &replanCallback) { replanCallback_ = replanCallback; }
 
 /**
    * @brief      Visualize submaps in Publisher
@@ -217,11 +211,6 @@ void setReplanCallback(const replanCallback &replanCallback) { replanCallback_ =
    */
 void publishSubmaps();
 
-/**
-   * @brief      Triggers replanning in Planner class
-   *
-   */
-void replan();
 
 /**
    * @brief      Ompl planning helper. Checks state collision in the submap list
@@ -311,8 +300,15 @@ private:
    */
   bool dataReadyForProcessing();
 
+  /**
+   * @brief   Assign spatial hash table
+   */
+  void doSpatialHashing(std::shared_ptr<se::OccupancyMap<se::Res::Multi>> map_ptr);
+
   const Transformation
       T_SC_; ///< Transformation of the depth camera frame wrt IMU sensor frame
+  const Transformation
+      T_CS_; ///< 
   const std::string meshesPath_;  ///< Path to save the meshes
   se::PinholeCamera sensor_;      ///< Depth sensor used in supereight
   se::MapConfig mapConfig_;       ///< Supereight Map config
@@ -345,7 +341,6 @@ private:
   // callbacks
   submapMeshesCallback submapMeshesCallback_; // to visualize in Publisher
   submapCallback submapCallback_; // to visualize in Publisher
-  replanCallback replanCallback_; // to trigger new plan()
 
   // flags
   // this flag is set when we get a loop closure frame, and lowered whenever we reassign submap hashes

@@ -153,8 +153,10 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
 
   // if current frame is a keyframe (faster)
   if (initialStateData.isKeyframe) {
-    T_WS0 = initialStateData.latestState.T_WS;
     keyframeId = initialStateData.latestState.id.value();
+    T_WS0 = initialStateData.latestState.T_WS;
+    submapPoseLookup_.insert(std::make_pair(keyframeId, T_WS0 * T_SC_));
+    std::cout << "New kf  " << keyframeId << "\n";
   }
   // else, and only if submaplookup contains id (older keyframe is the one w most co obs), check inside it for pose
   else if (submapPoseLookup_.count(initialStateData.currentKeyframe)) { 
@@ -162,10 +164,14 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
     T_WS0 = submapPoseLookup_[keyframeId] * T_CS_; // express in sensor frame
   }
   // this happens if the first frame is not a keyframe (should not happen)
+  // perhaps could look for Id directly in keyframestates
+  // or could publish from okvis also last keyframe state (not only id)
   else {
+    std::cout << "looking for submap " << initialStateData.currentKeyframe << " among " "\n";
+    for (auto& id: submapPoseLookup_) {
+      std::cout << id.first << "\n";
+    }
     throw std::runtime_error("FECK!");
-    // we en up here if the processseframe thread does not add the kf to the pose lookup in time... 
-    // if it happens, maybe insert pose right here, after if (initialStateData.isKeyframe) {
   }
 
   T_WC0 = T_WS0 * T_SC_;
@@ -350,18 +356,16 @@ void SupereightInterface::processSupereightFrames() {
 
         std::cout << "Completed integrating submap " << prevKeyframeId << "\n";
 
-        // do the spatial hashing
-        // do it threaded?
-        doSpatialHashing(*(submapLookup_[prevKeyframeId]));
+        // do the spatial hashing (do it threaded)
+        std::thread hashing_thread(&SupereightInterface::doSpatialHashing, this, *(submapLookup_[prevKeyframeId]));
+        hashing_thread.detach();
 
-        const std::string meshFilename =
-            meshesPath_ + "/" + std::to_string(prevKeyframeId) + ".ply";
+        const std::string meshFilename = meshesPath_ + "/" + std::to_string(prevKeyframeId) + ".ply";
 
         (*(submapLookup_[prevKeyframeId]))->saveMesh(meshFilename);
                 
-        // call submap visualizer
-        // do it threaded?
-        publishSubmaps(); 
+        // call submap visualizer (it's threaded)
+        publishSubmaps();
       }
 
       // If kf is new --> create new map
@@ -442,7 +446,7 @@ void SupereightInterface::processSupereightFrames() {
                                 supereightFrame.T_WC.T().cast<float>(), frame);
       frame++;
 
-      std::cout << "Integrating in submap " << supereightFrame.keyframeId << "\n";
+      // std::cout << "Integrating in submap " << supereightFrame.keyframeId << "\n";
       // std::cout << "Depth frame pose \n" << supereightFrame.T_WC.T().cast<float>() << "\n";
 
       // Prepare for next iteration
@@ -716,6 +720,7 @@ void SupereightInterface::doSpatialHashing(std::shared_ptr<se::OccupancyMap<se::
         // if octant is completely inside --> skip octant
         if(inside_octant) continue;
 
+
         int node_size;
         int node_scale;
         
@@ -732,12 +737,14 @@ void SupereightInterface::doSpatialHashing(std::shared_ptr<se::OccupancyMap<se::
             for (int x = 0; x < BlockType::getSize(); x += node_size) {
                 for (int y = 0; y < BlockType::getSize(); y += node_size) {
                     for (int z = 0; z < BlockType::getSize(); z += node_size) {
+
                       
                       // if the voxel is unobserved, skip
                       const auto data = block_ptr->getData();
-                      if (data.observed == false) continue;
+                      if (data.weight == 0) continue;
 
                       const Eigen::Vector3i node_coord = block_coord + Eigen::Vector3i(x, y, z);
+                      // std::cout << "voxel_coord \n" << node_coord << "\n";
 
                       // // corners: array of 8 3d coordinates
                       // Eigen::Vector3f node_corners[8];
@@ -775,9 +782,10 @@ void SupereightInterface::doSpatialHashing(std::shared_ptr<se::OccupancyMap<se::
             } // x
          }
         else { // if is node
+
             
           const auto data = static_cast<typename OctreeT::NodeType*>(octant_ptr)->getData();
-          if (data.observed == false) continue;
+          if (data.weight == 0) continue;
 
           node_size = static_cast<typename OctreeT::NodeType*>(octant_ptr)->getSize();
 
@@ -786,6 +794,7 @@ void SupereightInterface::doSpatialHashing(std::shared_ptr<se::OccupancyMap<se::
           // node_scale = 7;
 
           const Eigen::Vector3i node_coord = octant_ptr->getCoord();
+          std::cout << "node_coord \n" << node_coord << "\n";
           
           // // Get the coordinates of the octant vertices.
           // Eigen::Vector3f node_corners[8];

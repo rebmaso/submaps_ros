@@ -88,9 +88,11 @@ public:
 
   void setPathCallback(const pathCallback &pathCallback) { pathCallback_ = pathCallback; }
 
-  void updateStartState(const Eigen::Vector3f & r);
+  // void updateStartState(const Eigen::Vector3f & r);
 
-  // void processState(const okvis::State& state, const okvis::TrackingState& trackingstate);
+  void processState(const okvis::State& state, const okvis::TrackingState& trackingstate);
+
+  bool detectCollision(const ompl::base::State *state);
 
 };
 

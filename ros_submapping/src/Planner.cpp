@@ -46,7 +46,7 @@ Planner::Planner(SupereightInterface* se_interface_) {
   ss->setStartAndGoalStates((*start), (*goal));
   
   // set collision checker
-  ss->setStateValidityChecker(std::bind(&SupereightInterface::detectCollision, se_interface, std::placeholders::_1 )); 
+  ss->setStateValidityChecker(std::bind(&Planner::detectCollision, this, std::placeholders::_1 )); 
 
   // specify cost heuristic for planner.
   ob::OptimizationObjectivePtr obj(new ob::PathLengthOptimizationObjective(ss->getSpaceInformation()));
@@ -167,33 +167,121 @@ bool Planner::plan()
  
 }
 
-// void Planner::processState(const okvis::State& state, const okvis::TrackingState& trackingstate)
-// {
-
-//   okvis::kinematics::Transformation T = state.T_WS;
-
-//   Eigen::Quaterniond q = T.q();
-//   Eigen::Vector3d r = T.r();
-
-//   // set start state:
-  
-//   // position
-//   for (int i = 0; i < 3; i++)
-//   {
-//     (**start)[i] = r[i];
-//   }
-//   // orientation
-//   // (*start)->as<ob::SO3StateSpace::StateType>(1)->x = q.x();
-//   // (*start)->as<ob::SO3StateSpace::StateType>(1)->y = q.y();
-//   // (*start)->as<ob::SO3StateSpace::StateType>(1)->z = q.z();
-//   // (*start)->as<ob::SO3StateSpace::StateType>(1)->w = q.w();
-
-// }
-
-void Planner::updateStartState(const Eigen::Vector3f & r)
+void Planner::processState(const okvis::State& state, const okvis::TrackingState& trackingstate)
 {
+
+  okvis::kinematics::Transformation T = state.T_WS;
+
+  Eigen::Quaterniond q = T.q();
+  Eigen::Vector3d r = T.r();
+
+  // set start state:
+  
+  // position
   for (int i = 0; i < 3; i++)
   {
     (**start)[i] = r[i];
   }
+  // orientation
+  // (*start)->as<ob::SO3StateSpace::StateType>(1)->x = q.x();
+  // (*start)->as<ob::SO3StateSpace::StateType>(1)->y = q.y();
+  // (*start)->as<ob::SO3StateSpace::StateType>(1)->z = q.z();
+  // (*start)->as<ob::SO3StateSpace::StateType>(1)->w = q.w();
+
+}
+
+// void Planner::updateStartState(const Eigen::Vector3f & r)
+// {
+//   for (int i = 0; i < 3; i++)
+//   {
+//     (**start)[i] = r[i];
+//   }
+// }
+
+bool Planner::detectCollision(const ompl::base::State *state) 
+{
+  // with hash table, checking for circle around drone
+
+  if(se_interface->submapLookup_read.empty()) return false;
+
+  const ompl::base::RealVectorStateSpace::StateType *pos = state->as<ompl::base::RealVectorStateSpace::StateType>();
+
+  // the voxel we want to query (wrt world frame, homogenous)
+  Eigen::Vector4d r(pos->values[0],pos->values[1],pos->values[2],1);
+
+  // check occ inside a sphere around the drone 
+  // very sparse 
+  // lowest res is 1 voxel = 0.2m
+  const float rad = 0.2; // radius of the sphere
+
+  for (float z = -rad; z <= rad; z += rad/2)
+  {
+    for (float y = -rad; y <= rad; y += rad/2)
+    {
+      for (float x = -rad; x <= rad; x += rad/2)
+      {
+        if((std::pow(x,2) + std::pow(y,2) + std::pow(z,2)) > std::pow(rad,2)) continue; // skip if point is outside radius
+
+        // CHECK OCCUPANCY AMONG LOCAL SUBMAPS:
+
+        // add offset to r 
+        Eigen::Vector4d r_new = r;
+        r_new(0) += x;
+        r_new(1) += y;
+        r_new(2) += z;
+
+        // its respective truncated coordinates (the 1x1x1 box it's in)
+        Eigen::Vector3i box_coord;
+        for (int i = 0 ; i < 3 ; i++)
+        {
+          box_coord(i) = (int)(floor(r_new(i)));
+        }
+
+        // we add occupancy values here
+        double tot_occupancy = 0; 
+
+        //to consider universally unmapped voxels as occupied;
+        bool unmapped = true;
+
+        // iterate over submap ids (only the ones that contain current state!)
+        if (!se_interface->hashTable_read.count(box_coord)) return false;
+        for (auto& id: se_interface->hashTable_read[box_coord]) {
+
+          // transform state coords to check from world to map frame
+          const Eigen::Matrix4d T_wf = se_interface->submapPoseLookup_read[id].T(); // kf wrt world
+          const Eigen::Vector4d r_map_hom = T_wf.inverse() * r_new;// state coordinates (homogenous) in map frame
+
+          const Eigen::Vector3f r_map = r_map_hom.head<3>().cast<float>(); // take first 3 elems and cast to float
+          
+          // if voxel belongs to current submap
+          if (!se_interface->submapLookup_read.count(id)) return false;
+          if((*se_interface->submapLookup_read[id])->contains(r_map))
+          {
+            unmapped = false;
+            auto data = (*se_interface->submapLookup_read[id])->getData(r_map);
+            double occupancy = data.occupancy * data.weight; // occupancy value of the 3d point
+            tot_occupancy += occupancy;
+          }
+        } 
+        
+        // when done iterating over submaps, check total occupancy / check if unmapped
+
+        if(tot_occupancy >= 0) {
+          // std::cout << "\n \n OCCUPIED! \n \n";
+          return false; // occupied!
+        }
+
+        // if the voxel is not found in any submap
+        if(unmapped) {
+          // std::cout << "\n \n UNMAPPED! \n \n"; 
+          return false;
+        }
+        
+      } // x
+    } // y
+  } // z
+
+  // if we reach this point, it means every point on the circle is free
+  return true;
+
 }

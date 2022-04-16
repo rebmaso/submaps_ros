@@ -349,8 +349,10 @@ void SupereightInterface::processSupereightFrames() {
       // Integrate in the map tied to current keyframe
 
       // Send current keyframe to planner, to set start state
-      std::thread update_start(startStateCallback_,submapPoseLookup_[supereightFrame.keyframeId].r().cast<float>());
-      update_start.detach();
+      if (startStateCallback_) {
+        std::thread update_start(startStateCallback_,submapPoseLookup_[supereightFrame.keyframeId].r().cast<float>());
+        update_start.detach();
+      }
 
       // Retrieve the active submap.
       // can use the lookup bc every time a new submap is created, its also inserted there

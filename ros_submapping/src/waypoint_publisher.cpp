@@ -109,6 +109,30 @@ int main(int argc, char** argv) {
     publisher.pubwaypoint(0,i,1.5,0);
   }
 
+  // fwd 7m
+  for (double i = 0; i <= 7; i=i+0.25)
+  { 
+    publisher.pubwaypoint(i,0,1.5,0);
+  }
+  
+  // left 4m
+  for (double i = 0; i <= 4; i=i+0.25)
+  {
+    publisher.pubwaypoint(7,i,1.5,0);
+  }
+
+  // bwd 7m
+  for (double i = 7; i >= 0; i=i-0.25)
+  {
+    publisher.pubwaypoint(i,4,1.5,0);
+  }
+  
+  // right 4m
+  for (double i = 4; i >= 0; i=i-0.25)
+  {
+    publisher.pubwaypoint(0,i,1.5,0);
+  }
+
   // fwd 3m
   for (double i = 0; i <= 3; i=i+0.25)
   { 

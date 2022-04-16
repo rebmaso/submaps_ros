@@ -124,7 +124,8 @@ cv::Mat SupereightInterface::depthImage2Mat(const DepthFrame &depthFrame) {
 bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
                                   Transformation &T_WC0, Transformation &T_WC,
                                   uint64_t &keyframeId,
-                                  KeyFrameDataVec &keyFrameDataVec) {
+                                  KeyFrameDataVec &keyFrameDataVec,
+                                  bool &loop_closure) {
   // Locate the state timestamp closest to the finalTimestamp. Todo-> Switch the
   // backend of the threadsafe Queue to a deque ToDo -> Queue is sorted, use
   // binary search instead of linear Search
@@ -163,9 +164,13 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
     keyframeId = initialStateData.currentKeyframe;
     T_WS0 = submapPoseLookup_[keyframeId] * T_CS_; // express in sensor frame
   }
-  // this happens if the first frame is not a keyframe (should not happen)
-  // perhaps could look for Id directly in keyframestates
-  // or could publish from okvis also last keyframe state (not only id)
+  // this happens if a frame is both not a keyframe and the 
+  // current kf Id cant be found in the lookup table
+  // could publish from okvis also current keyframe state (not only id)
+  // or maybe could hack like this: save separately last kf that we integrated in
+  // if we end up here, then pick that one.
+  // Or maybe just ignore all that co-observation bull and just integrate in new kf / latest kf
+
   else {
     std::cout << "looking for submap " << initialStateData.currentKeyframe << " among " "\n";
     for (auto& id: submapPoseLookup_) {
@@ -182,6 +187,9 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
     const auto &state = initialStateData.keyframeStates[i];
     keyFrameDataVec.at(i) = KeyframeData(state.id.value(), state.T_WS * T_SC_);
   }
+
+  // Is current state a loop closure state?
+  loop_closure = initialStateData.loop_closure;
 
   // HACK: We can use the built in OKVIS prediction. Todo -> try to avoid the
   // duplicate queues and duplicate  code and check if we can directly Query the
@@ -259,10 +267,15 @@ void SupereightInterface::processSupereightFrames() {
     //  Update pose lookup --> each time a new seframe arrives, it contains updated info on all kf poses.
     //  we update here all poses
 
+    // std::cout << "optimized KFs: \n";
+
     for (auto &keyframeData : supereightFrame.keyFrameDataVec) {
+
     
       const auto id = keyframeData.id;
       const auto T_WM = keyframeData.T_WM;
+
+      // std::cout << " " << id << "\n";
       
       // Check If Id exists.
       if (submapPoseLookup_.count(id)) {
@@ -274,69 +287,11 @@ void SupereightInterface::processSupereightFrames() {
       }
     }
 
-    // // if a loop closure was detected, redo hashing
-
-    // if(loop_closure_redo_hashing) {
-
-    //     std::cout << "Loop closure: re-assigning spatial hash table \n";
-
-    //     // if we have a new keyframe & there's been a place recognition in the past frames --> reassign all locations
-    //     // TODO reallocate previous positions: only do this for the frames that were involved in the loop. (check new okvis commit)
-
-    //     loop_closure_redo_hashing = false; // lower the flag
-    
-    //     for (auto &it: hashTableInverse_) {
-
-    //       auto id = it.first;
-                  
-    //       std::cout << "   Submap " << id <<  "\n";
-
-    //       // remove every submap from the hash tables
-    //       for (auto &pos : hashTableInverse_[id]) // iterate over boxes for each keyframe
-    //       {
-    //         hashTable_[pos].erase(id); // remove id from box
-    //         hashTableInverse_[id].erase(pos); // remove box from id
-    //       }          
-          
-    //       const auto T_WM = submapPoseLookup_[id];
-    //       const Eigen::Matrix4d Tf = T_WM.T();
-
-    //       // we do it this way even if it means possible floor values that are the same. but if we added +1
-    //       // gaps could occur. takes a bit longer to allocate, but spare more time in submap query at planning time
-    //       for (float x = -1; x < 5; x+=0.5) // 0 6
-    //       {
-    //         for (float y = -3; y < 3; y+=0.5) // -4 4
-    //         {
-    //           for (float z = -3; z < 3; z+=0.5) // -4 4
-    //           {
-                
-    //             // get offset value (this pos is in kf frame)
-    //             Eigen::Vector4d pos_kf(x,y,z,1);
-
-    //             // transform into world frame
-    //             Eigen::Vector4d pos_world;
-    //             pos_world = Tf * pos_kf;
-
-    //             // floor transformed value
-    //             Eigen::Vector3i pos_floor;
-    //             for (int i = 0 ; i < 3 ; i++)
-    //             {
-    //               pos_floor(i) = (int)(floor(pos_world(i)));
-    //             }
-
-    //             // add to hashtable 
-    //             hashTable_[pos_floor].insert(id);
-                
-    //             // add pos to the inverse hash table
-    //             hashTableInverse_[id].insert(pos_floor);
-    //           }
-    //         }
-    //       }
-
-          
-
-    //     }
-    // }
+    // if a loop closure was detected, redo hashing
+    if(supereightFrame.loop_closure) {
+      std::thread hashing_thread(&SupereightInterface::redoSpatialHashing, this, supereightFrame.keyFrameDataVec);
+      hashing_thread.detach();
+    }
 
     // Chech whether we need to create a new submap. --> integrate in new or existing map?
     // this is the latest "active" keyframe id
@@ -344,7 +299,7 @@ void SupereightInterface::processSupereightFrames() {
 
     // =========== Current KF has changed ===========
 
-    // Finish up last map (hash + savemesh), create new map is keyframe is new
+    // Finish up last map (hash + savemesh), create new map if keyframe is new
     // We do just the first part if the keyframe is not a new one but somehow has got more coobs
 
     // current kf has changed
@@ -357,7 +312,7 @@ void SupereightInterface::processSupereightFrames() {
         std::cout << "Completed integrating submap " << prevKeyframeId << "\n";
 
         // do the spatial hashing (do it threaded)
-        std::thread hashing_thread(&SupereightInterface::doSpatialHashing, this, *(submapLookup_[prevKeyframeId]));
+        std::thread hashing_thread(&SupereightInterface::doSpatialHashing, this, prevKeyframeId);
         hashing_thread.detach();
 
         const std::string meshFilename = meshesPath_ + "/" + std::to_string(prevKeyframeId) + ".ply";
@@ -375,49 +330,6 @@ void SupereightInterface::processSupereightFrames() {
         submap_counter ++;
         std::cout << "New submap no. " << submap_counter << " (kf Id: " << supereightFrame.keyframeId << ")" << "\n";
 
-        
-        // // ======= hashing for newest keyframe =======
-          
-        // const auto id = supereightFrame.keyframeId;
-        // const auto T_WM = submapPoseLookup_[id];
-
-        // const Eigen::Matrix4d Tf = T_WM.T();
-
-        // for (float x = -1; x < 5; x+=0.5)
-        // {
-        //   for (float y = -3; y < 3; y+=0.5)
-        //   {
-        //     for (float z = -3; z < 3; z+=0.5)
-        //     {
-              
-        //       // get offset value (this pos is in kf frame)
-        //       Eigen::Vector4d pos_kf(x,y,z,1);
-
-        //       // transform into world frame
-        //       Eigen::Vector4d pos_world;
-        //       pos_world = Tf * pos_kf;
-
-        //       // floor transformed value
-        //       Eigen::Vector3i pos_floor;
-        //       for (int i = 0 ; i < 3 ; i++)
-        //       {
-        //         pos_floor(i) = (int)(floor(pos_world(i)));
-        //       }
-
-        //       // std::cout << "   box \n " << pos_floor <<  "\n";
-
-        //       // add to hashtable 
-        //       hashTable_[pos_floor].insert(id);
-
-        //       // add pos to the inverse hash table
-        //       hashTableInverse_[id].insert(pos_floor);
-
-        //     }
-        //   }
-        // }
-
-        // // ======= end hashing =======
-
         // Create a new submap and reset frame counter
         submaps_.emplace_back(
             new se::OccupancyMap<se::Res::Multi>(mapConfig_, dataConfig_));
@@ -428,13 +340,17 @@ void SupereightInterface::processSupereightFrames() {
         submapLookup_.insert(std::make_pair(supereightFrame.keyframeId,
                                             std::prev(submaps_.end())));
 
-        }
+      }
 
       }
 
       // =========== END Current KF has changed ===========
 
       // Integrate in the map tied to current keyframe
+
+      // Send current keyframe to planner, to set start state
+      std::thread update_start(startStateCallback_,submapPoseLookup_[supereightFrame.keyframeId].r().cast<float>());
+      update_start.detach();
 
       // Retrieve the active submap.
       // can use the lookup bc every time a new submap is created, its also inserted there
@@ -484,15 +400,15 @@ void SupereightInterface::pushSuperEightData() {
     Transformation T_WC0, T_WC;
     uint64_t lastKeyframeId;
     KeyFrameDataVec keyFrameDataVec;
+    bool loop_closure;
     if (!predict(depthMeasurement.timeStamp, T_WC0, T_WC, lastKeyframeId,
-                 keyFrameDataVec))
-      continue;
+                 keyFrameDataVec, loop_closure)) continue;
 
     // Construct Supereight Frame and push to the corresponding Queue
     const SupereightFrame supereightFrame(
         T_WC0.inverse() * T_WC,
         depthMat2Image(depthMeasurement.measurement.depthImage), lastKeyframeId,
-        keyFrameDataVec);
+        keyFrameDataVec, loop_closure);
 
     // Push to the Supereight Queue.
     const size_t supereightQueueSize = 5000; ///< ToDo -> Benchmark supereight.
@@ -551,15 +467,13 @@ bool SupereightInterface::stateUpdateCallback(
                               *keyframeStates,
                               latestState.timestamp,
                               latestTrackingState.isKeyframe,
-                              latestTrackingState.currentKeyframeId.value());
+                              latestTrackingState.currentKeyframeId.value(),
+                              latestTrackingState.recognisedPlace);
   const size_t stateUpdateQueue = 100; ///< 5 seconds of data at 20Hz.
   if (blocking_) {
     const bool result =
         stateUpdates_.PushBlockingIfFull(latestStateData, stateUpdateQueue);
     cvNewSensorMeasurements_.notify_one();
-
-    // if a place is recognised, we must reassign all submap hashes (we do so in processseframe)
-    if(latestTrackingState.recognisedPlace) loop_closure_redo_hashing = true; // raise the flag
     return result;
   } else {
     if (stateUpdates_.PushNonBlockingDroppingIfFull(latestStateData,
@@ -567,7 +481,6 @@ bool SupereightInterface::stateUpdateCallback(
       // Oldest measurement dropped
       LOG(WARNING) << "Oldest state  measurement dropped";
       cvNewSensorMeasurements_.notify_one();
-      if(latestTrackingState.recognisedPlace) loop_closure_redo_hashing = true; // raise the flag
       return true;
     }
   }
@@ -688,18 +601,90 @@ void SupereightInterface::fixReadLookups()
   hashTable_read = hashTable_;
 }
 
-void SupereightInterface::doSpatialHashing(std::shared_ptr<se::OccupancyMap<se::Res::Multi>> map_ptr) 
-{ 
-  // bounding box dims (min, max)
-  // Remember: these are in voxel coords!
-  // this probably takes a lot of time... thread?
+void SupereightInterface::redoSpatialHashing(const KeyFrameDataVec & keyFrameDataVec) 
+{
+    std::cout << "Loop closure: re-assigning spatial hash table \n";
 
-  Eigen::Vector3i min_box(0,0,0);
-  Eigen::Vector3i max_box(0,0,0);
+    for (auto &keyframeData : keyFrameDataVec) {
+
+      const auto id = keyframeData.id;
+      
+      // if index not in hash map, discard
+      if (!hashTableInverse_.count(id)) continue;
+
+      Eigen::Matrix<float,6,1> bounds = submapDimensionLookup_[id];
+
+      Eigen::Vector3f min_box_metres = {bounds(0),bounds(1),bounds(2)};
+      Eigen::Vector3f max_box_metres = {bounds(3),bounds(4),bounds(5)};
+              
+      // std::cout << "   Submap " << id <<  "\n";
+
+      // remove boxes for "id" submap
+      for (auto &pos : hashTableInverse_[id])
+      {
+        hashTable_[pos].erase(id); // remove id from box
+        hashTableInverse_[id].erase(pos); // remove box from id
+      }          
+      
+      auto T_KM = (*(submapLookup_[id]))->getTWM();
+      auto T_WK = submapPoseLookup_[id].T();
+      auto T_WM = T_WK.cast<float>() * T_KM;
+
+      const float side = 1.0; // hardcoded hash map box side of 1m
+      const float step = 0.5 * side * sqrt(2); // this ensures full cover of submap space
+
+
+      for (float x = min_box_metres(0); x <= max_box_metres(0); x+=step)
+      {
+        for (float y = min_box_metres(1); y <= max_box_metres(1); y+=step)
+        {
+          for (float z = min_box_metres(2); z <= max_box_metres(2); z+=step) 
+          {
+            
+            // get offset value (this pos is in map frame)
+            Eigen::Vector4f pos_map(x,y,z,1);
+
+            // transform into world frame
+            Eigen::Vector4f pos_world;
+            pos_world = T_WM * pos_map;
+
+            // floor transformed value
+            Eigen::Vector3i pos_floor;
+            for (int i = 0 ; i < 3 ; i++)
+            {
+              // if side is e.g. 2, a value of 4.5,4.5,4.5 is mapped to box 2,2,2
+              pos_floor(i) = (int)(floor(pos_world(i)/side));
+            }
+
+            // std::cout << "   box \n " << pos_floor <<  "\n";
+
+            // add to index 
+            hashTable_[pos_floor].insert(id);
+
+            // add pos to inverse index
+            hashTableInverse_[id].insert(pos_floor);
+          }
+        }
+      }          
+    }
+  }
+
+void SupereightInterface::doSpatialHashing(const uint64_t & id) 
+{ 
+  // if we already hashed this map, do nothing
+  if (hashTableInverse_.count(id)) return;
+
+  Eigen::Vector3i min_box(1000,1000,1000);
+  Eigen::Vector3i max_box(-1000,-1000,-1000);
 
   // ======== get bounding box dimensions (in map frame) ========
 
-  auto octree_ptr = map_ptr->getOctree();
+  auto octree_ptr = (*(submapLookup_[id]))->getOctree();
+
+  auto resolution = (*(submapLookup_[id]))->getRes();
+  auto T_KM = (*(submapLookup_[id]))->getTWM();
+  auto T_WK = submapPoseLookup_[id].T();
+  auto T_WM = T_WK.cast<float>() * T_KM;
 
   for (auto octant_it = se::LeavesIterator<OctreeT>(octree_ptr.get()); octant_it != se::LeavesIterator<OctreeT>(); ++octant_it) {
         const auto octant_ptr = *octant_it;
@@ -708,17 +693,17 @@ void SupereightInterface::doSpatialHashing(std::shared_ptr<se::OccupancyMap<se::
         // get the two min and max corners, and check them against bounds
         Eigen::Vector3i corner_min = octant_ptr->getCoord(); 
         Eigen::Vector3i corner_max = corner_min + Eigen::Vector3i::Constant(se::octantops::octant_to_size<OctreeT>(octant_ptr));
-        bool inside_octant = true;
+        bool inside_bounds = true;
         for (int i = 0; i < 3; i++) {
           // if not inside bounds
           if (corner_min(i) < min_box(i) || corner_max(i) > max_box(i))
           {
-            inside_octant = false;
+            inside_bounds = false;
             break;
           }
         }
         // if octant is completely inside --> skip octant
-        if(inside_octant) continue;
+        if(inside_bounds) continue;
 
 
         int node_size;
@@ -746,29 +731,19 @@ void SupereightInterface::doSpatialHashing(std::shared_ptr<se::OccupancyMap<se::
                       const Eigen::Vector3i node_coord = block_coord + Eigen::Vector3i(x, y, z);
                       // std::cout << "voxel_coord \n" << node_coord << "\n";
 
-                      // // corners: array of 8 3d coordinates
-                      // Eigen::Vector3f node_corners[8];
-                      // node_corners[0] = node_coord.cast<float>();
-                      // node_corners[1] = (node_coord + Eigen::Vector3i(node_size, 0, 0)).cast<float>();
-                      // node_corners[2] = (node_coord + Eigen::Vector3i(0, node_size, 0)).cast<float>();
-                      // node_corners[3] = (node_coord + Eigen::Vector3i(node_size, node_size, 0)).cast<float>();
-                      // node_corners[4] = (node_coord + Eigen::Vector3i(0, 0, node_size)).cast<float>();
-                      // node_corners[5] = (node_coord + Eigen::Vector3i(node_size, 0, node_size)).cast<float>();
-                      // node_corners[6] = (node_coord + Eigen::Vector3i(0, node_size, node_size)).cast<float>();
-                      // node_corners[7] = (node_coord + Eigen::Vector3i(node_size, node_size, node_size)).cast<float>();
-
-                      // Can I just check for lower and upper bound like this? (Like I did for the octant)
-                      // If so, delete useless corners
+                      
                       Eigen::Vector3i voxel_corner_min = node_coord;
                       Eigen::Vector3i voxel_corner_max = voxel_corner_min + Eigen::Vector3i(node_size, node_size, node_size);
                       for (int i = 0; i < 3; i++) {
                         // if not inside bounds, update either max or min
                         if (voxel_corner_min(i) < min_box(i))
                         {
+                          // std::cout << "update min \n";
                           min_box(i) = voxel_corner_min(i);
                         }
                         if (voxel_corner_max(i) > max_box(i))
                         {
+                          // std::cout << "update max \n";
                           max_box(i) = voxel_corner_max(i);
                         }
                       }
@@ -789,36 +764,20 @@ void SupereightInterface::doSpatialHashing(std::shared_ptr<se::OccupancyMap<se::
 
           node_size = static_cast<typename OctreeT::NodeType*>(octant_ptr)->getSize();
 
-          // Since we don't care about the node scale, just set it to a number that will result in
-          // a gray color when saving the mesh.
-          // node_scale = 7;
-
           const Eigen::Vector3i node_coord = octant_ptr->getCoord();
-          std::cout << "node_coord \n" << node_coord << "\n";
           
-          // // Get the coordinates of the octant vertices.
-          // Eigen::Vector3f node_corners[8];
-          // node_corners[0] = node_coord.cast<float>();
-          // node_corners[1] = (node_coord + Eigen::Vector3i(node_size, 0, 0)).cast<float>();
-          // node_corners[2] = (node_coord + Eigen::Vector3i(0, node_size, 0)).cast<float>();
-          // node_corners[3] = (node_coord + Eigen::Vector3i(node_size, node_size, 0)).cast<float>();
-          // node_corners[4] = (node_coord + Eigen::Vector3i(0, 0, node_size)).cast<float>();
-          // node_corners[5] = (node_coord + Eigen::Vector3i(node_size, 0, node_size)).cast<float>();
-          // node_corners[6] = (node_coord + Eigen::Vector3i(0, node_size, node_size)).cast<float>();
-          // node_corners[7] = (node_coord + Eigen::Vector3i(node_size, node_size, node_size)).cast<float>();
-
-          // Can I just check for lower and upper bound like this? (Like I did for the octant)
-          // If so, delete useless corners
           Eigen::Vector3i node_corner_min = node_coord;
           Eigen::Vector3i node_corner_max = node_corner_min + Eigen::Vector3i(node_size, node_size, node_size);
           for (int i = 0; i < 3; i++) {
             // if not inside bounds, update either max or min
             if (node_corner_min(i) < min_box(i))
-            {
+            { 
+              // std::cout << "update min \n";
               min_box(i) = node_corner_min(i);
             }
             if (node_corner_max(i) > max_box(i))
             {
+              // std::cout << "update max \n";
               max_box(i) = node_corner_max(i);
             }
           }
@@ -826,10 +785,81 @@ void SupereightInterface::doSpatialHashing(std::shared_ptr<se::OccupancyMap<se::
         }
     }
 
-  std::cout << "Map dimensions: \n" << min_box << "\n" << max_box << "\n";
+  Eigen::Vector3f min_box_metres;
+  Eigen::Vector3f max_box_metres;
+  for (int i = 0; i < 3; i++)
+  {
+    min_box_metres(i) = min_box(i) * resolution;
+    max_box_metres(i) = max_box(i) * resolution;
+  }
 
-  // TODO: convert to meter coords and do actual hashing.
-  // Check first if there already is an entry in 
+  // now I have the bounding box in metres, wrt the map frame.
+  // this frame is separated from the real world frame by: Twk*Tkm
+  // so to do hashing we must transform this box to the world frame by using this transformation
+  // just like I did before with the stupid hashing. but with a double transformation
+
+  // std::cout << "Map dimensions (meters): \nmin \n" << min_box_metres << "\nmax \n" << max_box_metres << "\n";
+
+  // insert map bounds in the lookup
+  Eigen::Matrix<float,6,1> dims;
+  dims << min_box_metres, max_box_metres;
+  submapDimensionLookup_.insert(std::make_pair(id,dims));
+
+  // Check first if there already is an entry in hash table. if there is, we should delete and rewrite.
+  // But to keep things simple, we just ignore that case. That happens when an older map is re-integrated
+  // We only redo the hashing when a loop closure is detected.
+
+  const float side = 1.0; // hardcoded hash map box side of 1m
+  const float step = 0.5 * side * sqrt(2); // this ensures full cover of submap space
+
+  // Eigen::Vector3i minbounds(100,100,100);
+  // Eigen::Vector3i maxbounds(-100,-100,-100);
+  
+  // need to take all points -> use <=
+  for (float x = min_box_metres(0); x <= max_box_metres(0); x+=step)
+        {
+          for (float y = min_box_metres(1); y < max_box_metres(1); y+=step)
+          {
+            for (float z = min_box_metres(2); z < max_box_metres(2); z+=step)
+            {
+              
+              // get offset value (this pos is in map frame)
+              Eigen::Vector4f pos_map(x,y,z,1);
+
+              // transform into world frame
+              Eigen::Vector4f pos_world;
+              pos_world = T_WM * pos_map;
+
+              // floor transformed value
+              Eigen::Vector3i pos_floor;
+              for (int i = 0 ; i < 3 ; i++)
+              {
+                // if side is e.g. 2, a value of 4.5,4.5,4.5 is mapped to box 2,2,2
+                pos_floor(i) = (int)(floor(pos_world(i)/side));
+              }
+
+              // std::cout << "   box \n " << pos_floor <<  "\n";
+
+              // add to index 
+              hashTable_[pos_floor].insert(id);
+
+              // add pos to inverse index
+              hashTableInverse_[id].insert(pos_floor);
+              
+              // for (int i = 0; i < 3; i++) {
+              //   if (pos_floor(i) < minbounds(i)) minbounds(i) = pos_floor(i);
+              //   if (pos_floor(i) > maxbounds(i)) maxbounds(i) = pos_floor(i);
+              // }
+            }
+          }
+        }
+
+  // auto kf_pos = submapPoseLookup_[id].r(); 
+  // std::cout << "Keyframe position: " << kf_pos(0) << " " << kf_pos(1) << " " << kf_pos(2) << "\n";
+  // std::cout << "x lims: " << minbounds(0) << " | " << maxbounds(0) <<  "\n";
+  // std::cout << "y lims: " << minbounds(1) << " | " << maxbounds(1) <<  "\n";
+  // std::cout << "z lims: " << minbounds(2) << " | " << maxbounds(2) <<  "\n";
+
 }
 
 

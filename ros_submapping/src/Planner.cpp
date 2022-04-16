@@ -167,25 +167,33 @@ bool Planner::plan()
  
 }
 
-void Planner::processState(const okvis::State& state, const okvis::TrackingState& trackingstate)
-{
+// void Planner::processState(const okvis::State& state, const okvis::TrackingState& trackingstate)
+// {
 
-  okvis::kinematics::Transformation T = state.T_WS;
+//   okvis::kinematics::Transformation T = state.T_WS;
 
-  Eigen::Quaterniond q = T.q();
-  Eigen::Vector3d r = T.r();
+//   Eigen::Quaterniond q = T.q();
+//   Eigen::Vector3d r = T.r();
 
-  // set start state:
+//   // set start state:
   
-  // position
+//   // position
+//   for (int i = 0; i < 3; i++)
+//   {
+//     (**start)[i] = r[i];
+//   }
+//   // orientation
+//   // (*start)->as<ob::SO3StateSpace::StateType>(1)->x = q.x();
+//   // (*start)->as<ob::SO3StateSpace::StateType>(1)->y = q.y();
+//   // (*start)->as<ob::SO3StateSpace::StateType>(1)->z = q.z();
+//   // (*start)->as<ob::SO3StateSpace::StateType>(1)->w = q.w();
+
+// }
+
+void Planner::updateStartState(const Eigen::Vector3f & r)
+{
   for (int i = 0; i < 3; i++)
   {
     (**start)[i] = r[i];
   }
-  // orientation
-  // (*start)->as<ob::SO3StateSpace::StateType>(1)->x = q.x();
-  // (*start)->as<ob::SO3StateSpace::StateType>(1)->y = q.y();
-  // (*start)->as<ob::SO3StateSpace::StateType>(1)->z = q.z();
-  // (*start)->as<ob::SO3StateSpace::StateType>(1)->w = q.w();
-
 }

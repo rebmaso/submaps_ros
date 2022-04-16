@@ -39,13 +39,16 @@ struct OkvisUpdate {
   okvis::Time timestamp;
   uint64_t currentKeyframe;
   bool isKeyframe;
+  bool loop_closure;
   OkvisUpdate(const State &latestState = State(),
               const StateVector &keyframeStates = StateVector(),
               const okvis::Time &timestamp = okvis::Time(),
               const bool isKeyframe = false,
-              const uint64_t currentKeyframe = 1)
+              const uint64_t currentKeyframe = 1,
+              const bool &loop_closure = false)
       : latestState(latestState), keyframeStates(keyframeStates),
-        timestamp(timestamp), isKeyframe(isKeyframe), currentKeyframe(currentKeyframe){};
+        timestamp(timestamp), isKeyframe(isKeyframe), 
+        currentKeyframe(currentKeyframe), loop_closure(loop_closure){};
 };
 
 typedef okvis::threadsafe::ThreadSafeQueue<OkvisUpdate> StateUpdatesQueue;
@@ -70,15 +73,17 @@ typedef std::vector<KeyframeData, Eigen::aligned_allocator<KeyframeData>>
 struct SupereightFrame {
   Transformation T_WC;
   DepthFrame depthFrame;
-  uint64_t keyframeId;
+  uint64_t keyframeId; // id of current kf
   KeyFrameDataVec keyFrameDataVec;
+  bool loop_closure;
 
   SupereightFrame(const Transformation &T_WC = Transformation::Identity(),
                   const DepthFrame &depthFrame = DepthFrame(640, 480, 0.f),
                   const uint64_t &keyframeId = 0,
-                  const KeyFrameDataVec &keyFrameDataVec = KeyFrameDataVec{})
+                  const KeyFrameDataVec &keyFrameDataVec = KeyFrameDataVec{},
+                  const bool &loop_closure = false)
       : T_WC(T_WC), depthFrame(depthFrame), keyframeId(keyframeId),
-        keyFrameDataVec(keyFrameDataVec){};
+        keyFrameDataVec(keyFrameDataVec), loop_closure(loop_closure){};
 };
 
 typedef okvis::threadsafe::ThreadSafeQueue<SupereightFrame>
@@ -91,6 +96,8 @@ typedef std::list<std::shared_ptr<se::OccupancyMap<se::Res::Multi>>> SubmapList;
 typedef std::function<void(std::unordered_map<uint64_t, Transformation>)> submapMeshesCallback;
 
 typedef std::function<void(std::unordered_map<uint64_t, Transformation>, std::unordered_map<uint64_t, SubmapList::iterator>)> submapCallback;
+
+typedef std::function<void(Eigen::Vector3f)> StartStateCallback;
 
 class SupereightInterface {
 public:
@@ -192,25 +199,6 @@ public:
   blocking_ = blocking;
 }
 
-/**
-   * @brief      Set function that handles submaps processing (use this to publish in ROS)
-   *
-   */
-void setSubmapMeshesCallback(const submapMeshesCallback &submapMeshesCallback) { submapMeshesCallback_ = submapMeshesCallback; }
-
-/**
-   * @brief      Set function that handles submaps processing (use this to publish in ROS)
-   *
-   */
-void setSubmapCallback(const submapCallback &submapCallback) { submapCallback_ = submapCallback; }
-
-
-/**
-   * @brief      Visualize submaps in Publisher
-   *
-   */
-void publishSubmaps();
-
 
 /**
    * @brief      Ompl planning helper. Checks state collision in the submap list
@@ -224,6 +212,30 @@ bool detectCollision(const ompl::base::State *state);
    *
    */
 void fixReadLookups();
+
+/**
+   * @brief      Sets function inside planner class that updates start state
+   *
+   */
+void setPlannerStartStateCallback(const StartStateCallback &startStateCallback) {startStateCallback_ = startStateCallback;}
+
+/**
+   * @brief      Set function that handles submaps processing (use this to publish in ROS)
+   *
+   */
+void setSubmapMeshesCallback(const submapMeshesCallback &submapMeshesCallback) { submapMeshesCallback_ = submapMeshesCallback; }
+
+/**
+   * @brief      Set function that handles submaps processing (use this to publish in ROS)
+   *
+   */
+void setSubmapCallback(const submapCallback &submapCallback) { submapCallback_ = submapCallback; }
+
+/**
+   * @brief      Visualize submaps in Publisher
+   *
+   */
+void publishSubmaps();
 
 
 // to hash a 3 int eigen vector
@@ -244,6 +256,7 @@ struct SpatialHasher {
 // To access maps
 std::unordered_map<uint64_t, SubmapList::iterator> submapLookup_; // use this to access submaps (index,submap)
 std::unordered_map<uint64_t, Transformation> submapPoseLookup_; // use this to access submap poses (index,pose)
+std::unordered_map<uint64_t, Eigen::Matrix<float,6,1>> submapDimensionLookup_; // use this when reindexing maps on loop closures (index,dims)
 // spatial hash maps --> 1x1x1 boxes (maybe make them bigger)
 std::unordered_map<Eigen::Vector3i, std::unordered_set<int>, SpatialHasher> hashTable_; // a hash table for quick submap access (box coord, list of indexes)
 std::unordered_map<int, std::unordered_set<Eigen::Vector3i, SpatialHasher>> hashTableInverse_; // inverse access hash table (index, list of box coords)
@@ -276,7 +289,8 @@ private:
 
   bool predict(const okvis::Time &finalTimestamp, Transformation &T_WC0,
                Transformation &T_WC, uint64_t &keyframeId,
-               KeyFrameDataVec &keyFrameDataVec);
+               KeyFrameDataVec &keyFrameDataVec,
+               bool &loop_closure);
 
   /**
    * @brief      Main function of the processing thread. It integrates the
@@ -301,9 +315,14 @@ private:
   bool dataReadyForProcessing();
 
   /**
+   * @brief   Re assign spatial hash table for kfs involved in loop closure
+   */
+  void redoSpatialHashing(const KeyFrameDataVec & KeyFrameDataVec_);
+
+  /**
    * @brief   Assign spatial hash table
    */
-  void doSpatialHashing(std::shared_ptr<se::OccupancyMap<se::Res::Multi>> map_ptr);
+  void doSpatialHashing(const uint64_t & id);
 
   const Transformation
       T_SC_; ///< Transformation of the depth camera frame wrt IMU sensor frame
@@ -341,6 +360,9 @@ private:
   // callbacks
   submapMeshesCallback submapMeshesCallback_; // to visualize in Publisher
   submapCallback submapCallback_; // to visualize in Publisher
+  StartStateCallback startStateCallback_; // to pudate start state in Planner
+
+
 
   // flags
   // this flag is set when we get a loop closure frame, and lowered whenever we reassign submap hashes

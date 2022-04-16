@@ -104,7 +104,8 @@ This project has also been tested on the uHumans2 dataset. I chose it because it
 
 ## Using the planner
 
-Just publish a goal on the /navgoal topic like this:
+Just publish a goal on the /navgoal topic like this.
+This goal is a point in the odom frame (the one where okvis starts).
 
 `` rostopic pub -1 /navgoal geometry_msgs/Point  '{x: 1.0, y: 0.0, z: 0.0}' ``
 

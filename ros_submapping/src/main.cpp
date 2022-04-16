@@ -239,7 +239,7 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
                                publisher.processState(_1,_2); 
                                publisher.publishKeyframesAsCallback(_1,_2,_3);
                                writer->processState(_1,_2,_3,_4); 
-                               planner->processState(_1,_2);
+                               //planner->processState(_1,_2);
                                se_interface->stateUpdateCallback(_1,_2,_3);});
 
   //// visualize the submaps
@@ -250,6 +250,9 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
 
   // trigger plan() every time a new submap is created
   // se_interface->setReplanCallback(std::bind(&Planner::plan, planner));
+
+  // update start state in planner with the latest kf pose relative to the map that is currently being integrated
+  se_interface->setPlannerStartStateCallback(std::bind(&Planner::updateStartState, planner.get() , std::placeholders::_1));
  
   // =============== REGISTER ROS CALLBACKS =============== 
 
@@ -307,6 +310,7 @@ void RosInterfacer::navGoalCallback(const geometry_msgs::Point &msg)
 {
   Eigen::Vector3d r(msg.x,msg.y,msg.z);
   
+  // start state is set by the mapping thread in supereightinterface
   planner->setGoal(r);
 
   thread_planner = std::thread(&Planner::plan,planner.get());

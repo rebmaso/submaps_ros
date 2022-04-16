@@ -88,7 +88,9 @@ public:
 
   void setPathCallback(const pathCallback &pathCallback) { pathCallback_ = pathCallback; }
 
-  void processState(const okvis::State& state, const okvis::TrackingState& trackingstate);
+  void updateStartState(const Eigen::Vector3f & r);
+
+  // void processState(const okvis::State& state, const okvis::TrackingState& trackingstate);
 
 };
 

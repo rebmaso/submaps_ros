@@ -119,7 +119,8 @@ public:
         dataConfig_(dataConfig), meshesPath_(meshesPath) {
 
     se::OccupancyMap<se::Res::Multi> map(mapConfig_, dataConfig_);
-    
+    no_kf_yet = true;
+
   };
 
   /**
@@ -198,13 +199,6 @@ public:
   void setBlocking(bool blocking) {
   blocking_ = blocking;
 }
-
-
-/**
-   * @brief      Ompl planning helper. Checks state collision in the submap list
-   *
-   */
-bool detectCollision(const ompl::base::State *state);
 
 
 /**
@@ -317,7 +311,7 @@ private:
   /**
    * @brief   Re assign spatial hash table for kfs involved in loop closure
    */
-  void redoSpatialHashing(const KeyFrameDataVec & KeyFrameDataVec_);
+  void redoSpatialHashing();
 
   /**
    * @brief   Assign spatial hash table
@@ -350,6 +344,7 @@ private:
   std::mutex cvMutex_;
   std::mutex s8Mutex_;
   std::mutex subMapMutex_;
+  std::mutex hashTableMutex_; // either dohashing or redohashing
 
   std::thread processingThread_;      ///< Thread running processing loop.
   std::thread dataPreparationThread_; ///< Thread running data preparation loop.
@@ -363,6 +358,10 @@ private:
   StartStateCallback startStateCallback_; // to pudate start state in Planner
 
   bool blocking_ = false;
+
+  // We use this to store the active keyframe in predict(), to prepare the supereightframe
+  State latestKeyframe;
+  bool no_kf_yet;
 
 };
 

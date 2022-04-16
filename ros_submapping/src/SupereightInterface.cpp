@@ -145,38 +145,52 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
 
   // Check that the initialStateData is initialised. Todo-> Clarify why we need
   // this
-  if (initialStateData.keyframeStates.empty())
-    return false;
-
-  // Retrieve the Pose of the current active kf (the one with most co observations)
+  if (initialStateData.keyframeStates.empty()) return false;
 
   Transformation T_WS0;
 
+  // ============ 
+
+  // Retrieve the Pose of the current active kf (the one with most co observations)
+
   // if current frame is a keyframe (faster)
-  if (initialStateData.isKeyframe) {
-    keyframeId = initialStateData.latestState.id.value();
-    T_WS0 = initialStateData.latestState.T_WS;
-    submapPoseLookup_.insert(std::make_pair(keyframeId, T_WS0 * T_SC_));
-    std::cout << "New kf  " << keyframeId << "\n";
-  }
+  // if (initialStateData.isKeyframe) {
+  //   keyframeId = initialStateData.latestState.id.value();
+  //   T_WS0 = initialStateData.latestState.T_WS;
+  //   submapPoseLookup_.insert(std::make_pair(keyframeId, T_WS0 * T_SC_));
+  //   std::cout << "New kf  " << keyframeId << "\n";
+  // }
   // else, and only if submaplookup contains id (older keyframe is the one w most co obs), check inside it for pose
-  else if (submapPoseLookup_.count(initialStateData.currentKeyframe)) { 
-    keyframeId = initialStateData.currentKeyframe;
-    T_WS0 = submapPoseLookup_[keyframeId] * T_CS_; // express in sensor frame
-  }
+  // else if (submapPoseLookup_.count(initialStateData.currentKeyframe)) { 
+  //   keyframeId = initialStateData.currentKeyframe;
+  //   T_WS0 = submapPoseLookup_[keyframeId] * T_CS_; // express in sensor frame
+  // }
   // this happens if a frame is both not a keyframe and the 
   // current kf Id cant be found in the lookup table
-  // could publish from okvis also current keyframe state (not only id)
-  // or maybe could hack like this: save separately last kf that we integrated in
-  // if we end up here, then pick that one.
-  // Or maybe just ignore all that co-observation bull and just integrate in new kf / latest kf
+  // else {
+  //   std::cout << "looking for submap " << initialStateData.currentKeyframe << " among " "\n";
+  //   for (auto& id: submapPoseLookup_) {
+  //     std::cout << id.first << "\n";
+  //   }
+  //   throw std::runtime_error("FECK!");
+  // }
 
-  else {
-    std::cout << "looking for submap " << initialStateData.currentKeyframe << " among " "\n";
-    for (auto& id: submapPoseLookup_) {
-      std::cout << id.first << "\n";
-    }
-    throw std::runtime_error("FECK!");
+  // ============
+
+  // simpler version. we dont integrate always in current keyframe, but in 
+  // LATEST one, which might be different in some occasions but is not a problem
+
+  // std::cout << "id " << initialStateData.latestState.id.value() << " " << initialStateData.isKeyframe << "\n";
+
+  if (initialStateData.isKeyframe || no_kf_yet) { // first update should always be keyframe
+    no_kf_yet = false;
+    T_WS0 = initialStateData.latestState.T_WS;
+    keyframeId = initialStateData.latestState.id.value();
+    latestKeyframe = initialStateData.latestState;
+  }
+  else { 
+    T_WS0 = latestKeyframe.T_WS;
+    keyframeId = latestKeyframe.id.value();
   }
 
   T_WC0 = T_WS0 * T_SC_;
@@ -289,7 +303,7 @@ void SupereightInterface::processSupereightFrames() {
 
     // if a loop closure was detected, redo hashing
     if(supereightFrame.loop_closure) {
-      std::thread hashing_thread(&SupereightInterface::redoSpatialHashing, this, supereightFrame.keyFrameDataVec);
+      std::thread hashing_thread(&SupereightInterface::redoSpatialHashing, this);
       hashing_thread.detach();
     }
 
@@ -302,7 +316,7 @@ void SupereightInterface::processSupereightFrames() {
     // Finish up last map (hash + savemesh), create new map if keyframe is new
     // We do just the first part if the keyframe is not a new one but somehow has got more coobs
 
-    // current kf has changed
+    // current kf has changed, and it is distant enough from last one
     if (supereightFrame.keyframeId != prevKeyframeId || submaps_.empty()) { 
       
       // hash (can be re-hash) & save map we just finished integrating
@@ -495,105 +509,15 @@ void SupereightInterface::publishSubmaps()
 
  if (submapCallback_) 
   {
-    // USE MUTEX HERE? dont think so (read only)
     std::thread publish_submaps(submapCallback_, submapPoseLookup_, submapLookup_);
     publish_submaps.detach();
   }  
 
   if (submapMeshesCallback_) 
   {
-    // USE MUTEX HERE? dont think so (read only)
     std::thread publish_meshes(submapMeshesCallback_, submapPoseLookup_);
     publish_meshes.detach();
   }  
-}
-
-bool SupereightInterface::detectCollision(const ompl::base::State *state) 
-{
-  // with hash table, checking for circle around drone
-
-  // if(submapLookup_read.empty()) return false;
-
-  const ompl::base::RealVectorStateSpace::StateType *pos = state->as<ompl::base::RealVectorStateSpace::StateType>();
-
-  // the voxel we want to query (wrt world frame, homogenous)
-  Eigen::Vector4d r(pos->values[0],pos->values[1],pos->values[2],1);
-
-  // check occ inside a sphere around the drone 
-  // very sparse 
-  // lowest res is 1 voxel = 0.2m
-  const float rad = 0.2; // radius of the sphere
-
-  for (float z = -rad; z <= rad; z += rad/2)
-  {
-    for (float y = -rad; y <= rad; y += rad/2)
-    {
-      for (float x = -rad; x <= rad; x += rad/2)
-      {
-        if((std::pow(x,2) + std::pow(y,2) + std::pow(z,2)) > std::pow(rad,2)) continue; // skip if point is outside radius
-
-        // CHECK OCCUPANCY AMONG LOCAL SUBMAPS:
-
-        // add offset to r 
-        Eigen::Vector4d r_new = r;
-        r_new(0) += x;
-        r_new(1) += y;
-        r_new(2) += z;
-
-        // its respective truncated coordinates (the 1x1x1 box it's in)
-        Eigen::Vector3i box_coord;
-        for (int i = 0 ; i < 3 ; i++)
-        {
-          box_coord(i) = (int)(floor(r_new(i)));
-        }
-
-        // we add occupancy values here
-        double tot_occupancy = 0; 
-
-        //to consider universally unmapped voxels as occupied;
-        bool unmapped = true;
-
-        // iterate over submap ids (only the ones that contain current state!)
-        if (!hashTable_read.count(box_coord)) return false;
-        for (auto& id: hashTable_read[box_coord]) {
-
-          // transform state coords to check from world to map frame
-          const Eigen::Matrix4d T_wf = submapPoseLookup_read[id].T(); // kf wrt world
-          const Eigen::Vector4d r_map_hom = T_wf.inverse() * r_new;// state coordinates (homogenous) in map frame
-
-          const Eigen::Vector3f r_map = r_map_hom.head<3>().cast<float>(); // take first 3 elems and cast to float
-          
-          // if voxel belongs to current submap
-          if (!submapLookup_read.count(id)) return false;
-          if((*submapLookup_read[id])->contains(r_map))
-          {
-            unmapped = false;
-            auto data = (*submapLookup_read[id])->getData(r_map);
-            double occupancy = data.occupancy * data.weight; // occupancy value of the 3d point
-            tot_occupancy += occupancy;
-          }
-        } 
-        
-        // when done iterating over submaps, check total occupancy / check if unmapped
-
-        if(tot_occupancy >= 0) {
-          // std::cout << "\n \n OCCUPIED! \n \n";
-          return false; // occupied!
-        }
-
-        // if the voxel is not found in any submap
-        if(unmapped) {
-          // std::cout << "\n \n UNMAPPED! \n \n"; 
-          return false;
-        }
-        
-      } // x
-    } // y
-  } // z
-
-  // if we reach this point, it means every point on the circle is free
-  return true;
-
 }
 
 void SupereightInterface::fixReadLookups()
@@ -603,13 +527,19 @@ void SupereightInterface::fixReadLookups()
   hashTable_read = hashTable_;
 }
 
-void SupereightInterface::redoSpatialHashing(const KeyFrameDataVec & keyFrameDataVec) 
-{
+void SupereightInterface::redoSpatialHashing() 
+{   
+    using namespace std::chrono_literals;
+
+    std::this_thread::sleep_for(100ms);
+
+    hashTableMutex_.lock();
+
     std::cout << "Loop closure: re-assigning spatial hash table \n";
 
-    for (auto &keyframeData : keyFrameDataVec) {
+    for (auto &it : hashTableInverse_) {
 
-      const auto id = keyframeData.id;
+      const auto id = it.first;
       
       // if index not in hash map, discard
       if (!hashTableInverse_.count(id)) continue;
@@ -669,12 +599,15 @@ void SupereightInterface::redoSpatialHashing(const KeyFrameDataVec & keyFrameDat
         }
       }          
     }
+
+    hashTableMutex_.unlock();
+
   }
 
 void SupereightInterface::doSpatialHashing(const uint64_t & id) 
 { 
   // if we already hashed this map, do nothing
-  if (hashTableInverse_.count(id)) return;
+  // if (hashTableInverse_.count(id)) return;
 
   Eigen::Vector3i min_box(1000,1000,1000);
   Eigen::Vector3i max_box(-1000,-1000,-1000);
@@ -816,6 +749,8 @@ void SupereightInterface::doSpatialHashing(const uint64_t & id)
 
   // Eigen::Vector3i minbounds(100,100,100);
   // Eigen::Vector3i maxbounds(-100,-100,-100);
+
+  hashTableMutex_.lock();
   
   // need to take all points -> use <=
   for (float x = min_box_metres(0); x <= max_box_metres(0); x+=step)
@@ -855,6 +790,8 @@ void SupereightInterface::doSpatialHashing(const uint64_t & id)
             }
           }
         }
+
+  hashTableMutex_.unlock();
 
   // auto kf_pos = submapPoseLookup_[id].r(); 
   // std::cout << "Keyframe position: " << kf_pos(0) << " " << kf_pos(1) << " " << kf_pos(2) << "\n";

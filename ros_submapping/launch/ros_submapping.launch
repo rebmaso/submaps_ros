@@ -22,7 +22,8 @@
   </group>
 
   <!-- all okvis output is published wrt odom frame-->
+  <!-- publish offset optionally, for visualization purposes -->
   <!-- <node pkg="tf" type="static_transform_publisher" name="link1_broadcaster" args="-16.04391 -2.61944 2.461393 0 0 -0.04641965028571606 0.998922027020804 world odom 100" /> -->
-  <node pkg="tf" type="static_transform_publisher" name="link1_broadcaster" args="0 0 0.2 0 0 0 world odom 500" />
+  <!-- <node pkg="tf" type="static_transform_publisher" name="link1_broadcaster" args="0 0 0.2 0 0 0 world odom 100" /> -->
 
 </launch>

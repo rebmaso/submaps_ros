@@ -71,18 +71,20 @@ typedef std::vector<KeyframeData, Eigen::aligned_allocator<KeyframeData>>
  *
  */
 struct SupereightFrame {
-  Transformation T_WC;
+  Transformation T_WC; // camera pose
+  Transformation T_WC0; // camera keyframe pose
   DepthFrame depthFrame;
   uint64_t keyframeId; // id of current kf
   KeyFrameDataVec keyFrameDataVec;
   bool loop_closure;
 
   SupereightFrame(const Transformation &T_WC = Transformation::Identity(),
+                  const Transformation &T_WC0 = Transformation::Identity(),
                   const DepthFrame &depthFrame = DepthFrame(640, 480, 0.f),
                   const uint64_t &keyframeId = 0,
                   const KeyFrameDataVec &keyFrameDataVec = KeyFrameDataVec{},
                   const bool &loop_closure = false)
-      : T_WC(T_WC), depthFrame(depthFrame), keyframeId(keyframeId),
+      : T_WC(T_WC), T_WC0(T_WC0), depthFrame(depthFrame), keyframeId(keyframeId),
         keyFrameDataVec(keyFrameDataVec), loop_closure(loop_closure){};
 };
 
@@ -96,8 +98,6 @@ typedef std::list<std::shared_ptr<se::OccupancyMap<se::Res::Multi>>> SubmapList;
 typedef std::function<void(std::unordered_map<uint64_t, Transformation>)> submapMeshesCallback;
 
 typedef std::function<void(std::unordered_map<uint64_t, Transformation>, std::unordered_map<uint64_t, SubmapList::iterator>)> submapCallback;
-
-typedef std::function<void(Eigen::Vector3f)> StartStateCallback;
 
 class SupereightInterface {
 public:
@@ -120,6 +120,7 @@ public:
 
     se::OccupancyMap<se::Res::Multi> map(mapConfig_, dataConfig_);
     no_kf_yet = true;
+    latestKeyframeId = 1;
 
   };
 
@@ -206,12 +207,6 @@ public:
    *
    */
 void fixReadLookups();
-
-/**
-   * @brief      Sets function inside planner class that updates start state
-   *
-   */
-void setPlannerStartStateCallback(const StartStateCallback &startStateCallback) {startStateCallback_ = startStateCallback;}
 
 /**
    * @brief      Set function that handles submaps processing (use this to publish in ROS)
@@ -355,12 +350,11 @@ private:
   // callbacks
   submapMeshesCallback submapMeshesCallback_; // to visualize in Publisher
   submapCallback submapCallback_; // to visualize in Publisher
-  StartStateCallback startStateCallback_; // to pudate start state in Planner
 
   bool blocking_ = false;
 
   // We use this to store the active keyframe in predict(), to prepare the supereightframe
-  State latestKeyframe;
+  uint64_t latestKeyframeId;
   bool no_kf_yet;
 
 };

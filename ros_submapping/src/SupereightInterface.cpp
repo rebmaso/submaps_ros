@@ -182,25 +182,28 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
 
   // std::cout << "id " << initialStateData.latestState.id.value() << " " << initialStateData.isKeyframe << "\n";
 
+  bool get_last_kf = false;
   if (initialStateData.isKeyframe || no_kf_yet) { // first update should always be keyframe
     no_kf_yet = false;
     T_WS0 = initialStateData.latestState.T_WS;
     keyframeId = initialStateData.latestState.id.value();
-    latestKeyframe = initialStateData.latestState;
+    latestKeyframeId = keyframeId;
   }
   else { 
-    T_WS0 = latestKeyframe.T_WS;
-    keyframeId = latestKeyframe.id.value();
+    get_last_kf = true; // get latest kf from keyframedatavec (check if they are ordered)
+    keyframeId = latestKeyframeId;
   }
-
-  T_WC0 = T_WS0 * T_SC_;
 
   // KF poses. 
   keyFrameDataVec = KeyFrameDataVec(initialStateData.keyframeStates.size());
   for (size_t i = 0; i < initialStateData.keyframeStates.size(); i++) {
     const auto &state = initialStateData.keyframeStates[i];
+    // std::cout << " " << state.id.value() << "\n";
+    if(get_last_kf && (state.id.value() == latestKeyframeId)) T_WS0 = state.T_WS;
     keyFrameDataVec.at(i) = KeyframeData(state.id.value(), state.T_WS * T_SC_);
   }
+
+  T_WC0 = T_WS0 * T_SC_;
 
   // Is current state a loop closure state?
   loop_closure = initialStateData.loop_closure;
@@ -303,6 +306,7 @@ void SupereightInterface::processSupereightFrames() {
 
     // if a loop closure was detected, redo hashing
     if(supereightFrame.loop_closure) {
+      fixReadLookups();
       std::thread hashing_thread(&SupereightInterface::redoSpatialHashing, this);
       hashing_thread.detach();
     }
@@ -311,21 +315,27 @@ void SupereightInterface::processSupereightFrames() {
     // this is the latest "active" keyframe id
     static uint64_t prevKeyframeId = supereightFrame.keyframeId;
 
-    // =========== Current KF has changed ===========
+    // =========== Current KF has changed, and is distant enough  ===========
 
-    // Finish up last map (hash + savemesh), create new map if keyframe is new
-    // We do just the first part if the keyframe is not a new one but somehow has got more coobs
+    // Finish up last map (hash + savemesh), create new map 
+
+    //compute distance from last keyframe:
+    bool distant_enough = false;
+    const double treshold = 4.0;
+    auto distance = (submapPoseLookup_[supereightFrame.keyframeId].r() - submapPoseLookup_[prevKeyframeId].r()).norm();
+    if (distance > treshold) distant_enough = true;
 
     // current kf has changed, and it is distant enough from last one
-    if (supereightFrame.keyframeId != prevKeyframeId || submaps_.empty()) { 
+    if ((supereightFrame.keyframeId != prevKeyframeId && distant_enough)|| submaps_.empty()) { 
       
-      // hash (can be re-hash) & save map we just finished integrating
+      // hash & save map we just finished integrating
       // 4 safety, check that submap exists in lookup
-      if (!submaps_.empty() && submapLookup_.count(prevKeyframeId)) {
+      if (!submaps_.empty()) {
 
         std::cout << "Completed integrating submap " << prevKeyframeId << "\n";
 
         // do the spatial hashing (do it threaded)
+        fixReadLookups();
         std::thread hashing_thread(&SupereightInterface::doSpatialHashing, this, prevKeyframeId);
         hashing_thread.detach();
 
@@ -337,24 +347,25 @@ void SupereightInterface::processSupereightFrames() {
         publishSubmaps();
       }
 
-      // If kf is new --> create new map
+      // create new map
       static unsigned int submap_counter = 0;
-      if (!submapLookup_.count(supereightFrame.keyframeId))
-      {
-        submap_counter ++;
-        std::cout << "New submap no. " << submap_counter << " (kf Id: " << supereightFrame.keyframeId << ")" << "\n";
+      submap_counter ++;
+      std::cout << "New submap no. " << submap_counter << " (kf Id: " << supereightFrame.keyframeId << ")" << "\n";
 
-        // Create a new submap and reset frame counter
-        submaps_.emplace_back(
-            new se::OccupancyMap<se::Res::Multi>(mapConfig_, dataConfig_));
-        frame = 0;
+      // Create a new submap and reset frame counter
+      submaps_.emplace_back(
+          new se::OccupancyMap<se::Res::Multi>(mapConfig_, dataConfig_));
+      frame = 0;
 
-        // Add the (keyframe Id, iterator) pair in the submapLookup_
-        // We are adding the map that is curently being integrated (submaps back)
-        submapLookup_.insert(std::make_pair(supereightFrame.keyframeId,
-                                            std::prev(submaps_.end())));
+      // Add the (keyframe Id, iterator) pair in the submapLookup_
+      // We are adding the map that is curently being integrated (submaps back)
+      submapLookup_.insert(std::make_pair(supereightFrame.keyframeId,
+                                          std::prev(submaps_.end())));
 
-      }
+    
+
+      // now we integrate in this keyframe, until we find a new one that is distant enough
+      prevKeyframeId = supereightFrame.keyframeId;
 
       }
 
@@ -362,27 +373,15 @@ void SupereightInterface::processSupereightFrames() {
 
       // Integrate in the map tied to current keyframe
 
-      // Send current keyframe to planner, to set start state
-      if (startStateCallback_) {
-        std::thread update_start(startStateCallback_,submapPoseLookup_[supereightFrame.keyframeId].r().cast<float>());
-        update_start.detach();
-      }
-
       // Retrieve the active submap.
       // can use the lookup bc every time a new submap is created, its also inserted there
-      auto &activeMap = *(submapLookup_[supereightFrame.keyframeId]);
+      auto &activeMap = *(submapLookup_[prevKeyframeId]);
 
       se::MapIntegrator integrator(
           *activeMap); //< ToDo -> Check how fast this constructor is
       integrator.integrateDepth(sensor_, supereightFrame.depthFrame,
-                                supereightFrame.T_WC.T().cast<float>(), frame);
-      frame++;
-
-      // std::cout << "Integrating in submap " << supereightFrame.keyframeId << "\n";
-      // std::cout << "Depth frame pose \n" << supereightFrame.T_WC.T().cast<float>() << "\n";
-
-      // Prepare for next iteration
-      prevKeyframeId = supereightFrame.keyframeId;
+                                (submapPoseLookup_[prevKeyframeId].inverse() * supereightFrame.T_WC).T().cast<float>(), frame);
+      frame++;      
 
       // const auto current_time = std::chrono::high_resolution_clock::now();
       // // Some couts, remove when done debugging.
@@ -422,7 +421,7 @@ void SupereightInterface::pushSuperEightData() {
 
     // Construct Supereight Frame and push to the corresponding Queue
     const SupereightFrame supereightFrame(
-        T_WC0.inverse() * T_WC,
+        T_WC, T_WC0,
         depthMat2Image(depthMeasurement.measurement.depthImage), lastKeyframeId,
         keyFrameDataVec, loop_closure);
 
@@ -558,8 +557,8 @@ void SupereightInterface::redoSpatialHashing()
         hashTableInverse_[id].erase(pos); // remove box from id
       }          
       
-      auto T_KM = (*(submapLookup_[id]))->getTWM();
-      auto T_WK = submapPoseLookup_[id].T();
+      auto T_KM = (*(submapLookup_read[id]))->getTWM();
+      auto T_WK = submapPoseLookup_read[id].T();
       auto T_WM = T_WK.cast<float>() * T_KM;
 
       const float side = 1.0; // hardcoded hash map box side of 1m
@@ -614,11 +613,11 @@ void SupereightInterface::doSpatialHashing(const uint64_t & id)
 
   // ======== get bounding box dimensions (in map frame) ========
 
-  auto octree_ptr = (*(submapLookup_[id]))->getOctree();
+  auto octree_ptr = (*(submapLookup_read[id]))->getOctree();
 
-  auto resolution = (*(submapLookup_[id]))->getRes();
-  auto T_KM = (*(submapLookup_[id]))->getTWM();
-  auto T_WK = submapPoseLookup_[id].T();
+  auto resolution = (*(submapLookup_read[id]))->getRes();
+  auto T_KM = (*(submapLookup_read[id]))->getTWM();
+  auto T_WK = submapPoseLookup_read[id].T();
   auto T_WM = T_WK.cast<float>() * T_KM;
 
   for (auto octant_it = se::LeavesIterator<OctreeT>(octree_ptr.get()); octant_it != se::LeavesIterator<OctreeT>(); ++octant_it) {

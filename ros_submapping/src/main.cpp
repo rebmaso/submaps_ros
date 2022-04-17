@@ -251,9 +251,6 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
   // trigger plan() every time a new submap is created
   // se_interface->setReplanCallback(std::bind(&Planner::plan, planner));
 
-  // update start state in planner with the latest kf pose relative to the map that is currently being integrated
-  // se_interface->setPlannerStartStateCallback(std::bind(&Planner::updateStartState, planner.get() , std::placeholders::_1));
- 
   // =============== REGISTER ROS CALLBACKS =============== 
 
   sync.registerCallback(boost::bind(&RosInterfacer::imgsCallback, this, _1, _2));

@@ -674,7 +674,11 @@ void Publisher::publishKeyframesAsCallback(const State &latestState, const Track
   KFmsg_.mesh_resource = "package://rviz_rotors/meshes/camera.stl";
   KFmsg_.action = visualization_msgs::Marker::ADD;
   // orientation
-  Eigen::Quaterniond q = keyframeStates[i].T_WS.q();
+  Eigen::Matrix4d T_WC = keyframeStates[i].T_WS.T() * T_SC_;
+  Eigen::Matrix3d R_WC = T_WC.block<3,3>(0,0);
+  Eigen::Matrix3d R;
+  R << 0, 0, -1, 0, -1, 0, 1, 0, 0;
+  Eigen::Quaterniond q(R_WC*R);
   KFmsg_.pose.orientation.x = q.x();
   KFmsg_.pose.orientation.y = q.y();
   KFmsg_.pose.orientation.z = q.z();

@@ -34,6 +34,6 @@ sensor:
   cx:                         320.500000
   cy:                         240.500000
   left_hand_frame:            false
-  near_plane:                 0.2
+  near_plane:                 0.0
   far_plane:                  2.0
 

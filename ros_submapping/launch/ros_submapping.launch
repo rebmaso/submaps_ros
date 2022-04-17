@@ -15,7 +15,7 @@
 
   <group ns="submapping">
     <node name="main" pkg="ros_submapping" type="main" args="$(find ros_submapping)/config/$(arg config_okvis) $(find ros_submapping)/config/$(arg config_s8)  $(arg package) 
-    $(arg imu_topic) $(arg cam0_topic) $(arg cam1_topic) $(arg depth_topic)" output="screen" launch-prefix="xterm -e gdb --args" />
+    $(arg imu_topic) $(arg cam0_topic) $(arg cam1_topic) $(arg depth_topic)" output="screen"/> launch-prefix="xterm -e gdb --args" />
   </group>
   
   <group if="$(arg rviz)">

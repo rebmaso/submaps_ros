@@ -246,10 +246,12 @@ struct SpatialHasher {
 std::unordered_map<uint64_t, SubmapList::iterator> submapLookup_; // use this to access submaps (index,submap)
 std::unordered_map<uint64_t, Transformation> submapPoseLookup_; // use this to access submap poses (index,pose)
 std::unordered_map<uint64_t, Eigen::Matrix<float,6,1>> submapDimensionLookup_; // use this when reindexing maps on loop closures (index,dims)
-// spatial hash maps --> 1x1x1 boxes (maybe make them bigger)
+// spatial hash maps: sidexsidexside boxes 
 std::unordered_map<Eigen::Vector3i, std::unordered_set<int>, SpatialHasher> hashTable_; // a hash table for quick submap access (box coord, list of indexes)
 std::unordered_map<int, std::unordered_set<Eigen::Vector3i, SpatialHasher>> hashTableInverse_; // inverse access hash table (index, list of box coords)
-// Static lookups to use for collision checking (TODO make const?)
+// Static lookups to use for collision checking 
+// We need a separate copy or else segfault bc multiple threads accessing
+// cannot pass map by value... the function is called thousands of times
 std::unordered_map<uint64_t, SubmapList::iterator> submapLookup_read; 
 std::unordered_map<uint64_t, Transformation> submapPoseLookup_read;
 std::unordered_map<Eigen::Vector3i, std::unordered_set<int>, SpatialHasher> hashTable_read;
@@ -305,13 +307,20 @@ private:
 
   /**
    * @brief   Re assign spatial hash table for kfs involved in loop closure
+   * We pass lookups to fix them and avoid segfaults
    */
-  void redoSpatialHashing();
+  void redoSpatialHashing(std::unordered_map<uint64_t, SubmapList::iterator> maplookup,
+                          std::unordered_map<uint64_t, Transformation> poselookup);
 
   /**
-   * @brief   Assign spatial hash table
+   * @brief   Pre-index new map as soon as we start integrating
    */
-  void doSpatialHashing(const uint64_t & id);
+  void doPrelimSpatialHashing(const uint64_t id, const Eigen::Vector3d pos_kf);
+
+  /**
+   * @brief   Index new map when it's done being integrated
+   */
+  void doSpatialHashing(const uint64_t id, const Transformation Tf, const SubmapList::iterator map);
 
   const Transformation
       T_SC_; ///< Transformation of the depth camera frame wrt IMU sensor frame

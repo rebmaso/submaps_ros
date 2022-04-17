@@ -211,6 +211,8 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
 
   // depth cam extrinsics. in the visensor, the depth camera frame is the same as the left camera
   const Eigen::Matrix4d T_SC = parameters.nCameraSystem.T_SC(0)->T();
+
+  publisher.setT_SC(T_SC);
   
   //se_interface = new SupereightInterface(cameraConfig, mapConfig, dataConfig, T_SC, meshesDir);
   se_interface = std::make_shared<SupereightInterface>(cameraConfig, mapConfig, dataConfig, T_SC, meshesDir);

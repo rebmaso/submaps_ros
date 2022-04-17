@@ -193,6 +193,16 @@ class Publisher
   ///        maximum is reached, the last pose is copied in a new path message. The rest are deleted.
   void setPath(const okvis::kinematics::Transformation& T_WS);
 
+  /**
+   * @brief set the meshes directory where the submaps are.
+   */
+  void setMeshesPath(std::string meshesDir);
+
+  /**
+   * @brief set T_SC to visualize camera frustum for keyframes
+  */
+  void setT_SC(const Eigen::Matrix4d & T_SC) {T_SC_ = T_SC;}
+
   /// \}
   /// \name Publish
   /// \{
@@ -236,11 +246,6 @@ class Publisher
   void publishLandmarksAsCallback(
       const okvis::Time & t, const okvis::MapPointVector & actualLandmarks,
       const okvis::MapPointVector & transferredLandmarks);
-  
-  /**
-   * @brief set the meshes directory where the submaps are.
-   */
-  void setMeshesPath(std::string meshesDir);
 
   /**
    * @brief publish submaps as meshes.
@@ -412,6 +417,8 @@ class Publisher
 
   std::shared_ptr<std::fstream> csvFile_; ///< CSV file to save state in.
   std::shared_ptr<std::fstream> csvLandmarksFile_;  ///< CSV file to save landmarks in.
+
+  Eigen::Matrix4d T_SC_; // Tf from Sensor to Camera
 
 };
 

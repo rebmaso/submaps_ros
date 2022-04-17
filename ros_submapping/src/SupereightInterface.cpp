@@ -306,8 +306,7 @@ void SupereightInterface::processSupereightFrames() {
 
     // if a loop closure was detected, redo hashing
     if(supereightFrame.loop_closure) {
-      fixReadLookups();
-      std::thread hashing_thread(&SupereightInterface::redoSpatialHashing, this);
+      std::thread hashing_thread(&SupereightInterface::redoSpatialHashing, this, submapLookup_, submapPoseLookup_);
       hashing_thread.detach();
     }
 
@@ -335,8 +334,7 @@ void SupereightInterface::processSupereightFrames() {
         std::cout << "Completed integrating submap " << prevKeyframeId << "\n";
 
         // do the spatial hashing (do it threaded)
-        fixReadLookups();
-        std::thread hashing_thread(&SupereightInterface::doSpatialHashing, this, prevKeyframeId);
+        std::thread hashing_thread(&SupereightInterface::doSpatialHashing, this, prevKeyframeId, submapPoseLookup_[prevKeyframeId], submapLookup_[prevKeyframeId]);
         hashing_thread.detach();
 
         const std::string meshFilename = meshesPath_ + "/" + std::to_string(prevKeyframeId) + ".ply";
@@ -362,7 +360,10 @@ void SupereightInterface::processSupereightFrames() {
       submapLookup_.insert(std::make_pair(supereightFrame.keyframeId,
                                           std::prev(submaps_.end())));
 
-    
+      // do a preliminary hashing (allocate 10x10x10 box in hash table)
+      // we do this so that we can plan even while integrating current map
+      std::thread prelim_hashing_thread(&SupereightInterface::doPrelimSpatialHashing, this, supereightFrame.keyframeId, submapPoseLookup_[supereightFrame.keyframeId].r());
+      prelim_hashing_thread.detach();
 
       // now we integrate in this keyframe, until we find a new one that is distant enough
       prevKeyframeId = supereightFrame.keyframeId;
@@ -526,98 +527,171 @@ void SupereightInterface::fixReadLookups()
   hashTable_read = hashTable_;
 }
 
-void SupereightInterface::redoSpatialHashing() 
+// dont change pass by value
+void SupereightInterface::redoSpatialHashing(std::unordered_map<uint64_t, SubmapList::iterator> maplookup,
+                                            std::unordered_map<uint64_t, Transformation> poselookup) 
 {   
-    using namespace std::chrono_literals;
+  using namespace std::chrono_literals;
 
-    std::this_thread::sleep_for(100ms);
+  std::this_thread::sleep_for(100ms);
 
-    hashTableMutex_.lock();
+  hashTableMutex_.lock();
 
-    std::cout << "Loop closure: re-assigning spatial hash table \n";
+  std::cout << "Loop closure: re-assigning spatial hash table \n";
 
-    for (auto &it : hashTableInverse_) {
+  for (auto &it : hashTableInverse_) {
 
-      const auto id = it.first;
-      
-      // if index not in hash map, discard
-      if (!hashTableInverse_.count(id)) continue;
+    const auto id = it.first;
+    
+    // if index not in hash map, discard
+    if (!hashTableInverse_.count(id)) continue;
 
-      Eigen::Matrix<float,6,1> bounds = submapDimensionLookup_[id];
+    Eigen::Matrix<float,6,1> bounds = submapDimensionLookup_[id];
 
-      Eigen::Vector3f min_box_metres = {bounds(0),bounds(1),bounds(2)};
-      Eigen::Vector3f max_box_metres = {bounds(3),bounds(4),bounds(5)};
-              
-      // std::cout << "   Submap " << id <<  "\n";
-
-      // remove boxes for "id" submap
-      for (auto &pos : hashTableInverse_[id])
-      {
-        hashTable_[pos].erase(id); // remove id from box
-        hashTableInverse_[id].erase(pos); // remove box from id
-      }          
-      
-      auto T_KM = (*(submapLookup_read[id]))->getTWM();
-      auto T_WK = submapPoseLookup_read[id].T();
-      auto T_WM = T_WK.cast<float>() * T_KM;
-
-      const float side = 1.0; // hardcoded hash map box side of 1m
-      const float step = 0.5 * side * sqrt(2); // this ensures full cover of submap space
-
-
-      for (float x = min_box_metres(0); x <= max_box_metres(0); x+=step)
-      {
-        for (float y = min_box_metres(1); y <= max_box_metres(1); y+=step)
-        {
-          for (float z = min_box_metres(2); z <= max_box_metres(2); z+=step) 
-          {
+    Eigen::Vector3f min_box_metres = {bounds(0),bounds(1),bounds(2)};
+    Eigen::Vector3f max_box_metres = {bounds(3),bounds(4),bounds(5)};
             
-            // get offset value (this pos is in map frame)
-            Eigen::Vector4f pos_map(x,y,z,1);
+    // std::cout << "   Submap " << id <<  "\n";
 
-            // transform into world frame
-            Eigen::Vector4f pos_world;
-            pos_world = T_WM * pos_map;
+    // remove boxes for "id" submap
+    for (auto &pos : hashTableInverse_[id])
+    {
+      hashTable_[pos].erase(id); // remove id from box
+      hashTableInverse_[id].erase(pos); // remove box from id
+    }          
+    
+    auto T_KM = (*(maplookup[id]))->getTWM();
+    auto T_WK = poselookup[id].T();
+    auto T_WM = T_WK.cast<float>() * T_KM;
 
-            // floor transformed value
-            Eigen::Vector3i pos_floor;
-            for (int i = 0 ; i < 3 ; i++)
-            {
-              // if side is e.g. 2, a value of 4.5,4.5,4.5 is mapped to box 2,2,2
-              pos_floor(i) = (int)(floor(pos_world(i)/side));
-            }
+    const float side = 1.0; // hardcoded hash map box side of 1m
+    const float step = 0.5 * side * sqrt(2); // this ensures full cover of submap space
 
-            // std::cout << "   box \n " << pos_floor <<  "\n";
 
-            // add to index 
-            hashTable_[pos_floor].insert(id);
+    for (float x = min_box_metres(0); x <= max_box_metres(0); x+=step)
+    {
+      for (float y = min_box_metres(1); y <= max_box_metres(1); y+=step)
+      {
+        for (float z = min_box_metres(2); z <= max_box_metres(2); z+=step) 
+        {
+          
+          // get offset value (this pos is in map frame)
+          Eigen::Vector4f pos_map(x,y,z,1);
 
-            // add pos to inverse index
-            hashTableInverse_[id].insert(pos_floor);
+          // transform into world frame
+          Eigen::Vector4f pos_world;
+          pos_world = T_WM * pos_map;
+
+          // floor transformed value
+          Eigen::Vector3i pos_floor;
+          for (int i = 0 ; i < 3 ; i++)
+          {
+            // if side is e.g. 2, a value of 4.5,4.5,4.5 is mapped to box 2,2,2
+            pos_floor(i) = (int)(floor(pos_world(i)/side));
           }
+
+          // std::cout << "   box \n " << pos_floor <<  "\n";
+
+          // add to index 
+          hashTable_[pos_floor].insert(id);
+
+          // add pos to inverse index
+          hashTableInverse_[id].insert(pos_floor);
         }
-      }          
-    }
-
-    hashTableMutex_.unlock();
-
+      }
+    }          
   }
 
-void SupereightInterface::doSpatialHashing(const uint64_t & id) 
+  hashTableMutex_.unlock();
+
+}
+
+// pass by value needed
+void SupereightInterface::doPrelimSpatialHashing(const uint64_t id, const Eigen::Vector3d pos_kf)
+{
+
+  const uint64_t side = 1; // step (in metre)s of the spatial grid
+  const uint64_t box_side = 10; // dim of the box we'll allocate
+  
+  // box dims, in metres
+  Eigen::Vector3i min_box_metres = Eigen::Vector3i::Constant(-box_side);
+  Eigen::Vector3i max_box_metres = Eigen::Vector3i::Constant(box_side);
+  Eigen::Matrix<int,6,1> dims;
+  dims << min_box_metres, max_box_metres;
+
+  // box dims, in box units (not metres)
+  Eigen::Vector3i min_box;
+  Eigen::Vector3i max_box;
+
+  // create 10x10x10m box around kf pos. round values to box units
+  for (int i = 0 ; i < 3 ; i++)
+  {
+    min_box(i) = floor((pos_kf(i) - box_side)/side);
+    max_box(i) = floor((pos_kf(i) + box_side)/side);
+  }
+
+  hashTableMutex_.lock();
+
+  // add dimensions in lookup
+  // should be relative to map frame but who cares... this is just a big box
+  // this needs to be in metres instead
+  submapDimensionLookup_.insert(std::make_pair(id,dims.cast<float>()));
+
+  // index the box, without caring about orientation.
+  // its just a dumb hack to allow planning for current submap
+  for (int x = min_box(0); x <= max_box(0); x+=1)
+    {
+      for (int y = min_box(1); y <= max_box(1); y+=1)
+      {
+        for (int z = min_box(2); z <= max_box(2); z+=1) 
+        {
+          Eigen::Vector3i pos(x,y,z);
+
+          // add to index 
+          hashTable_[pos].insert(id);
+
+          // add pos to inverse index
+          hashTableInverse_[id].insert(pos);
+        }
+      }
+    }        
+
+  hashTableMutex_.unlock();
+
+}
+
+// do not change pass by value
+void SupereightInterface::doSpatialHashing(const uint64_t id, const Transformation Tf, const SubmapList::iterator map) 
 { 
   // if we already hashed this map, do nothing
   // if (hashTableInverse_.count(id)) return;
+
+  hashTableMutex_.lock();
+
+  // we first need to get rid of the preliminary indexing we did when 
+  // creating map (we indexed a 10x10x10 box)
+  if (hashTableInverse_.count(id)) 
+  { // this should always be the case
+    for (auto &pos : hashTableInverse_[id])
+    {
+      hashTable_[pos].erase(id); // remove id from box
+      hashTableInverse_[id].erase(pos); // remove box from id
+      submapDimensionLookup_.erase(id); // remve dimensions
+    } 
+  }
+
+  hashTableMutex_.unlock();
 
   Eigen::Vector3i min_box(1000,1000,1000);
   Eigen::Vector3i max_box(-1000,-1000,-1000);
 
   // ======== get bounding box dimensions (in map frame) ========
 
-  auto octree_ptr = (*(submapLookup_read[id]))->getOctree();
+  auto octree_ptr = (*map)->getOctree();
 
-  auto resolution = (*(submapLookup_read[id]))->getRes();
-  auto T_KM = (*(submapLookup_read[id]))->getTWM();
-  auto T_WK = submapPoseLookup_read[id].T();
+  auto resolution = (*map)->getRes();
+  auto T_KM = (*map)->getTWM();
+  auto T_WK = Tf.T();
   auto T_WM = T_WK.cast<float>() * T_KM;
 
   for (auto octant_it = se::LeavesIterator<OctreeT>(octree_ptr.get()); octant_it != se::LeavesIterator<OctreeT>(); ++octant_it) {

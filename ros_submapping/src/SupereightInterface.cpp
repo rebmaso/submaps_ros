@@ -86,7 +86,7 @@ DepthFrame SupereightInterface::depthMat2Image(const cv::Mat &inputDepth) {
   // Scale the input depth based on TUM convension
   // needed this bc dataset is 1 mt --> 5000. With the simulated depth cam we should already have 1mt -> 1
   cv::Mat depthScaled;
-  // inputDepth.convertTo(depthScaled, CV_32FC1, 1.f / 5000.f);
+  //inputDepth.convertTo(depthScaled, CV_32FC1, 1.f / 1000.f);
   inputDepth.convertTo(depthScaled, CV_32FC1);
 
   // Initialise and copy
@@ -632,6 +632,8 @@ void SupereightInterface::doPrelimSpatialHashing(const uint64_t id, const Eigen:
 
   hashTableMutex_.lock();
 
+  // std::cout << "PRELIM HASHING \n";
+
   // add dimensions in lookup
   // should be relative to map frame but who cares... this is just a big box
   // this needs to be in metres instead
@@ -667,6 +669,8 @@ void SupereightInterface::doSpatialHashing(const uint64_t id, const Transformati
   // if (hashTableInverse_.count(id)) return;
 
   hashTableMutex_.lock();
+
+  // std::cout << "HASHING \n";
 
   // we first need to get rid of the preliminary indexing we did when 
   // creating map (we indexed a 10x10x10 box)

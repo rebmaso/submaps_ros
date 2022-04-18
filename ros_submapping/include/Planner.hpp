@@ -60,13 +60,21 @@ private:
 
   std::shared_ptr<og::PathGeometric> path;
 
-  std::shared_ptr<ob::ScopedState<ob::RealVectorStateSpace>> start;
+  // std::shared_ptr<ob::ScopedState<ob::RealVectorStateSpace>> start;
 
-  std::shared_ptr<ob::ScopedState<ob::RealVectorStateSpace>> goal;
+  // std::shared_ptr<ob::ScopedState<ob::RealVectorStateSpace>> goal;
+
+  Eigen::Vector3d start; // updated continuously by slam callback
+
+  Eigen::Vector3d start_fixed; // is the one that was used at last planning query
+
+  Eigen::Vector3d goal; // updated at each planning query
 
   pathCallback pathCallback_; // external visualizer (it's in Publisher)
 
   //bool started; // a flag that is needed to avoid unnecessary planning at startup
+
+  std::mutex planMutex; // need this to allow only 1 plan() at a time
 
 public:
 

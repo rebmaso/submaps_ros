@@ -15,21 +15,21 @@ Planner::Planner(SupereightInterface* se_interface_) {
 
   // important: define here the box inside which you intend to plan
   
-  // // uHumans
-  // bounds.setLow(0,-1);
-  // bounds.setHigh(0,25);
-  // bounds.setLow(1,-5);
-  // bounds.setHigh(1,4);
-  // bounds.setLow(2,-4);
-  // bounds.setHigh(2,4);
+  // uHumans
+  bounds.setLow(0,-1);
+  bounds.setHigh(0,25);
+  bounds.setLow(1,-5);
+  bounds.setHigh(1,4);
+  bounds.setLow(2,-4);
+  bounds.setHigh(2,4);
 
-  // gazebo garching
-  bounds.setLow(0,-3);
-  bounds.setHigh(0,10);
-  bounds.setLow(1,-3);
-  bounds.setHigh(1,6);
-  bounds.setLow(2,-1);
-  bounds.setHigh(2,5);
+  // // gazebo garching
+  // bounds.setLow(0,-3);
+  // bounds.setHigh(0,10);
+  // bounds.setLow(1,-3);
+  // bounds.setHigh(1,6);
+  // bounds.setLow(2,-1);
+  // bounds.setHigh(2,5);
 
   // set the bounds you just chose
   space->as<ob::RealVectorStateSpace>()->setBounds(bounds);
@@ -38,22 +38,32 @@ Planner::Planner(SupereightInterface* se_interface_) {
 
   ss = std::make_shared<og::SimpleSetup>(space);
 
-  // create a start state
-  start = std::make_shared<ob::ScopedState<ob::RealVectorStateSpace>>(space);
-  (**start)[0] = 0;
-  (**start)[1] = 0;
-  (**start)[2] = 0;
-  // (*start)->as<ob::SO3StateSpace::StateType>(1)->setIdentity();
-  
-  // create a goal state
-  goal = std::make_shared<ob::ScopedState<ob::RealVectorStateSpace>>(space);
-  (**goal)[0] = 0;
-  (**goal)[1] = 0;
-  (**goal)[2] = 0;
-  // (*goal)->as<ob::SO3StateSpace::StateType>(1)->setIdentity();
+  // // create a start state
+  // start = std::make_shared<ob::ScopedState<ob::RealVectorStateSpace>>(space);
+  // (**start)[0] = 0;
+  // (**start)[1] = 0;
+  // (**start)[2] = 0;
+
+  // create start state
+  ob::ScopedState<ob::RealVectorStateSpace> start_ompl(space);
+  (*start_ompl)[0] = 0;
+  (*start_ompl)[1] = 0;
+  (*start_ompl)[2] = 0;
+
+  // // create a goal state
+  // goal = std::make_shared<ob::ScopedState<ob::RealVectorStateSpace>>(space);
+  // (**goal)[0] = 0;
+  // (**goal)[1] = 0;
+  // (**goal)[2] = 0;
+
+  // create goal state
+  ob::ScopedState<ob::RealVectorStateSpace> goal_ompl(space);
+  (*goal_ompl)[0] = 0;
+  (*goal_ompl)[1] = 0;
+  (*goal_ompl)[2] = 0;
   
   // set start & goal
-  ss->setStartAndGoalStates((*start), (*goal));
+  ss->setStartAndGoalStates(start_ompl, goal_ompl);
   
   // set collision checker
   ss->setStateValidityChecker(std::bind(&Planner::detectCollision, this, std::placeholders::_1 )); 
@@ -87,39 +97,25 @@ Planner::Planner(SupereightInterface* se_interface_) {
 
 void Planner::setStart(const Eigen::Vector3d & r)
 {
-  // position
-  // (*start)->setXYZ(r[0],r[1],r[2]);
-  for (int i = 0; i < 3; i++)
-  {
-    (**start)[i] = r[i];
-  }
 
-  // orientation
-  // (*start)->as<ob::SO3StateSpace::StateType>(1)->x = q.x();
-  // (*start)->as<ob::SO3StateSpace::StateType>(1)->y = q.y();
-  // (*start)->as<ob::SO3StateSpace::StateType>(1)->z = q.z();
-  // (*start)->as<ob::SO3StateSpace::StateType>(1)->w = q.w();
-  
-  // std::cout << "(planner) new start set to: " << r[0] << " " << r[1] << " " << r[2] << std::endl;
+  // for (int i = 0; i < 3; i++)
+  // {
+  //   (**start)[i] = r[i];
+  // }
+
+  start = r;
+
 }
 
 void Planner::setGoal(const Eigen::Vector3d & r)
 {
-  // (*goal)->setXYZ(r[0],r[1],r[2]);
-  for (int i = 0; i < 3; i++)
-  {
-    (**goal)[i] = r[i];
-  }
+  // for (int i = 0; i < 3; i++)
+  // {
+  //   (**goal)[i] = r[i];
+  // }
 
+  goal = r;
 
-  // (*goal)->as<ob::SO3StateSpace::StateType>(1)->x = q.x();
-  // (*goal)->as<ob::SO3StateSpace::StateType>(1)->y = q.y();
-  // (*goal)->as<ob::SO3StateSpace::StateType>(1)->z = q.z();
-  // (*goal)->as<ob::SO3StateSpace::StateType>(1)->w = q.w();
-
-  //started = true;
-
-  //  plan(); // should plan whenever I set a new goal I get a new goal (returns after plan() is done)
 }
 
 bool Planner::plan()
@@ -131,25 +127,43 @@ bool Planner::plan()
 
   // set the fixed lookups for the collision checking func
 
-  if (se_interface->submapLookup_.empty()) {
+  // wait if other plan thread is executing
+  std::unique_lock<std::mutex> lk(planMutex);
+
+  // need this later, for a hack in collision detector
+  start_fixed = start;
+
+  se_interface->fixReadLookups();
+
+  if (se_interface->submapLookup_read.empty() || se_interface->hashTable_read.empty()) {
     std::cout << "Planner failed. No maps yet. \n";
     return false;
   }
 
-  se_interface->fixReadLookups();
-
   std::cout << "\n\nPlanning from: " 
-  << (**start)[0] << " " 
-  << (**start)[1] << " " 
-  << (**start)[2] << " to: " 
-  << (**goal)[0]<< " " 
-  << (**goal)[1]<< " " 
-  << (**goal)[2]<< "\n\n";
+  << start[0] << " " 
+  << start[1] << " " 
+  << start[2] << " to: " 
+  << goal[0]<< " " 
+  << goal[1]<< " " 
+  << goal[2]<< "\n\n";
+
+  // create ompl start state
+  ob::ScopedState<ob::RealVectorStateSpace> start_ompl(space);
+  (*start_ompl)[0] = start[0];
+  (*start_ompl)[1] = start[1];
+  (*start_ompl)[2] = start[2];
+
+  // create ompl goal state
+  ob::ScopedState<ob::RealVectorStateSpace> goal_ompl(space);
+  (*goal_ompl)[0] = goal[0];
+  (*goal_ompl)[1] = goal[1];
+  (*goal_ompl)[2] = goal[2];
 
   ss->clear();
 
   // load current start & goal
-  ss->setStartAndGoalStates((*start), (*goal));
+  ss->setStartAndGoalStates(start_ompl, goal_ompl);
 
   ob::PlannerStatus solved = ss->solve(2.0);
 
@@ -180,23 +194,14 @@ bool Planner::plan()
 void Planner::processState(const okvis::State& state, const okvis::TrackingState& trackingstate)
 {
 
-  okvis::kinematics::Transformation T = state.T_WS;
-
-  Eigen::Quaterniond q = T.q();
-  Eigen::Vector3d r = T.r();
-
-  // set start state:
+  // Eigen::Vector3d r = state.T_WS.r();
   
-  // position
-  for (int i = 0; i < 3; i++)
-  {
-    (**start)[i] = r[i];
-  }
-  // orientation
-  // (*start)->as<ob::SO3StateSpace::StateType>(1)->x = q.x();
-  // (*start)->as<ob::SO3StateSpace::StateType>(1)->y = q.y();
-  // (*start)->as<ob::SO3StateSpace::StateType>(1)->z = q.z();
-  // (*start)->as<ob::SO3StateSpace::StateType>(1)->w = q.w();
+  // for (int i = 0; i < 3; i++)
+  // {
+  //   (**start)[i] = r[i];
+  // }
+
+  start = state.T_WS.r();
 
 }
 
@@ -212,12 +217,16 @@ bool Planner::detectCollision(const ompl::base::State *state)
 {
   // with hash table, checking for circle around drone
 
-  if(se_interface->submapLookup_read.empty()) return false;
-
   const ompl::base::RealVectorStateSpace::StateType *pos = state->as<ompl::base::RealVectorStateSpace::StateType>();
-
+  
   // the voxel we want to query (wrt world frame, homogenous)
   Eigen::Vector4d r(pos->values[0],pos->values[1],pos->values[2],1);
+
+  // Hack: when e.g. camera moves backwards we move out of the map -> this means that start
+  // state is always invalid! We can avoid this by arbitrarily saying that if state is real close to 
+  // start -> is free. Adds a bit of overhead (but maybe also saves some time). Comment out when benchmarking
+  if((r.head<3>() - start_fixed).norm() < 0.5) return true;
+
 
   // check occ inside a sphere around the drone 
   // very sparse 

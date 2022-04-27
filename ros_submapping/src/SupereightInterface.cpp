@@ -33,36 +33,6 @@ bool SupereightInterface::addDepthImage(const okvis::Time &stamp,
   return false;
 }
 
-bool SupereightInterface::addImuMeasurement(const okvis::Time &stamp,
-                                            const Eigen::Vector3d &alpha,
-                                            const Eigen::Vector3d &omega) {
-  // Create an okvis IMU measurement
-  ImuMeasurement imuMeasurement;
-  imuMeasurement.measurement.accelerometers = alpha;
-  imuMeasurement.measurement.gyroscopes = omega;
-  imuMeasurement.timeStamp = stamp;
-
-  const size_t imuQueueSize = 50000; ///< ToDo- > fine-tune once integration
-                                     ///< time has been taken into account.
-  if (blocking_) {
-    const bool result =
-        imuMeasurements_.PushBlockingIfFull(imuMeasurement, imuQueueSize);
-    // cvNewSensorMeasurements_.notify_one();
-
-    return result;
-  } else {
-    // Push measurement and pop the oldest entry.
-    if (imuMeasurements_.PushNonBlockingDroppingIfFull(imuMeasurement,
-                                                       imuQueueSize)) {
-      // Oldest measurement dropped.
-      LOG(WARNING) << "Oldest imu measurement dropped";
-      // cvNewSensorMeasurements_.notify_one();
-      return true;
-    }
-  }
-  return false;
-}
-
 bool SupereightInterface::dataReadyForProcessing() {
   // Get the timestamp of the oldest Depth frame
   CameraMeasurement oldestDepthMeasurement;
@@ -73,12 +43,7 @@ bool SupereightInterface::dataReadyForProcessing() {
   if (!stateUpdates_.getCopyOfBack(&newestState))
     return false;
 
-  ImuMeasurement newestImuMeasurement;
-  if (!imuMeasurements_.getCopyOfBack(&newestImuMeasurement))
-    return false;
-
-  return (oldestDepthMeasurement.timeStamp <= newestState.timestamp) &&
-         (oldestDepthMeasurement.timeStamp <= newestImuMeasurement.timeStamp);
+  return (oldestDepthMeasurement.timeStamp <= newestState.timestamp);
 }
 
 DepthFrame SupereightInterface::depthMat2Image(const cv::Mat &inputDepth) {
@@ -149,39 +114,6 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
 
   Transformation T_WS0;
 
-  // ============ 
-
-  // Retrieve the Pose of the current active kf (the one with most co observations)
-
-  // if current frame is a keyframe (faster)
-  // if (initialStateData.isKeyframe) {
-  //   keyframeId = initialStateData.latestState.id.value();
-  //   T_WS0 = initialStateData.latestState.T_WS;
-  //   submapPoseLookup_.insert(std::make_pair(keyframeId, T_WS0 * T_SC_));
-  //   std::cout << "New kf  " << keyframeId << "\n";
-  // }
-  // else, and only if submaplookup contains id (older keyframe is the one w most co obs), check inside it for pose
-  // else if (submapPoseLookup_.count(initialStateData.currentKeyframe)) { 
-  //   keyframeId = initialStateData.currentKeyframe;
-  //   T_WS0 = submapPoseLookup_[keyframeId] * T_CS_; // express in sensor frame
-  // }
-  // this happens if a frame is both not a keyframe and the 
-  // current kf Id cant be found in the lookup table
-  // else {
-  //   std::cout << "looking for submap " << initialStateData.currentKeyframe << " among " "\n";
-  //   for (auto& id: submapPoseLookup_) {
-  //     std::cout << id.first << "\n";
-  //   }
-  //   throw std::runtime_error("FECK!");
-  // }
-
-  // ============
-
-  // simpler version. we dont integrate always in current keyframe, but in 
-  // LATEST one, which might be different in some occasions but is not a problem
-
-  // std::cout << "id " << initialStateData.latestState.id.value() << " " << initialStateData.isKeyframe << "\n";
-
   bool get_last_kf = false;
   if (initialStateData.isKeyframe || no_kf_yet) { // first update should always be keyframe
     no_kf_yet = false;
@@ -208,56 +140,11 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
   // Is current state a loop closure state?
   loop_closure = initialStateData.loop_closure;
 
-  // HACK: We can use the built in OKVIS prediction. Todo -> try to avoid the
-  // duplicate queues and duplicate  code and check if we can directly Query the
-  // propagated pose from OKVIS
-
-  // We are getting all imu meas from the initial state to the final state
-  // put them in the deque --> later we integrate them
-  okvis::ImuMeasurementDeque imuDeque;
-  while (true) {
-    // Get a copy of the oldest element in the Queue.
-    ImuMeasurement imuMeasurement;
-    if (!imuMeasurements_.getCopyOfFront(&imuMeasurement))
-      return false;
-
-    // Check timestamp. If greater than final timestamp, continue;
-    const double imuDt =
-        5 * 1e-3; // ToDo -> set this based on the actual IMU rate
-    if (imuMeasurement.timeStamp > finalTimestamp + okvis::Duration(imuDt)) {
-      break;
-    }
-
-    // Push to the Deque and Pop from Measurement Queue.
-    imuDeque.push_back(imuMeasurement);
-
-    // Pop from Queue
-    // Todo -> this should only work if no other thread is trying to pop at the
-    // same time. Add a lock to prevent this from happening.
-    imuMeasurements_.PopNonBlocking(&imuMeasurement);
-  }
-
-  // Perform the prediction
-  okvis::kinematics::Transformation T_WS(initialStateData.latestState.T_WS);
-  okvis::SpeedAndBias speedAndBiases(
-      (okvis::SpeedAndBias() << initialStateData.latestState.v_W,
-       initialStateData.latestState.b_g, initialStateData.latestState.b_a)
-          .finished());
-
-  // Todo -> Load the parameters from a config file. Set to a large value to
-  // suppress warnings.
-  okvis::ImuParameters imuParams;
-  imuParams.a_max = 1e+4;
-  imuParams.g_max = 1e+4;
-
-  const int integrationNo = okvis::ceres::ImuError::propagation(
-      imuDeque, imuParams, T_WS, speedAndBiases, initialStateData.timestamp,
-      finalTimestamp);
-  if (integrationNo == -1)
-    return false;
+  State propagatedState;
+  if(!propagatedStates.getState(finalTimestamp, propagatedState)) throw std::runtime_error("AAAAAAA"); // check that this dont happn. then just return false
 
   // Predicted Pose
-  T_WC = T_WS * T_SC_;
+  T_WC = propagatedState.T_WS * T_SC_;
 
   return true;
 }

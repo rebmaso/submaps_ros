@@ -333,16 +333,6 @@ void RosInterfacer::imuCallback(const sensor_msgs::ImuConstPtr& msg)
                       LOG(WARNING) << "Imu meas. delayed at time "<<t;
                       }
 
-  if(!se_interface->addImuMeasurement( // pass imu meas. to okvis interface
-      t,
-      Eigen::Vector3d(msg->linear_acceleration.x, msg->linear_acceleration.y,
-                      msg->linear_acceleration.z),
-      Eigen::Vector3d(msg->angular_velocity.x, msg->angular_velocity.y,
-                      msg->angular_velocity.z)))
-                      {
-                      LOG(WARNING) << " (SUPEREIGHT) Imu meas. delayed at time "<<t;
-                      }
-
 }
 
 void RosInterfacer::imgsCallback(const sensor_msgs::ImageConstPtr& img_0, const sensor_msgs::ImageConstPtr& img_1) 

@@ -23,8 +23,6 @@
 // Some convenient typedefs
 typedef se::Image<float> DepthFrame;
 typedef okvis::CameraMeasurement CameraMeasurement;
-typedef okvis::ImuMeasurement ImuMeasurement;
-typedef okvis::threadsafe::ThreadSafeQueue<ImuMeasurement> ImuQueue;
 typedef okvis::threadsafe::ThreadSafeQueue<CameraMeasurement> DepthFrameQueue;
 typedef okvis::StateId StateId;
 typedef okvis::kinematics::Transformation Transformation;
@@ -129,7 +127,6 @@ public:
    */
   ~SupereightInterface() {
     // Shutdown all the Queues.
-    imuMeasurements_.Shutdown();
     depthMeasurements_.Shutdown();
     stateUpdates_.Shutdown();
     supereightFrames_.Shutdown();
@@ -148,18 +145,6 @@ public:
    * @return     True if successful
    */
   bool addDepthImage(const okvis::Time &stamp, const cv::Mat &depthFrame);
-
-  /**
-   * @brief      Adds an imu measurement to the measurement Queue.
-   *
-   * @param[in]  stamp  The timestamp
-   * @param[in]  alpha  The measured linear acceleration
-   * @param[in]  omega  The measured angular velocity
-   *
-   * @return     True if successful
-   */
-  bool addImuMeasurement(const okvis::Time &stamp, const Eigen::Vector3d &alpha,
-                         const Eigen::Vector3d &omega);
 
   /**
    * @brief      Displays the most recent Depth frame.
@@ -330,7 +315,6 @@ private:
   se::PinholeCamera sensor_;      ///< Depth sensor used in supereight
   se::MapConfig mapConfig_;       ///< Supereight Map config
   se::OccupancyDataConfig dataConfig_; ///< Supereight Data config
-  ImuQueue imuMeasurements_;      ///< Queue with the buffered IMU measurements
   DepthFrameQueue
       depthMeasurements_; ///< Queue with the buffered Depth measurements
   StateUpdatesQueue

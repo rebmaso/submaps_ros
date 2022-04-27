@@ -8,6 +8,7 @@
 #include <okvis/FrameTypedefs.hpp>
 #include <okvis/Measurements.hpp>
 #include <okvis/ViInterface.hpp>
+#include <okvis/ThreadedSlam.hpp>
 #include <okvis/ViParametersReader.hpp>
 #include <okvis/ceres/ImuError.hpp>
 #include <okvis/kinematics/Transformation.hpp>
@@ -117,11 +118,10 @@ public:
                       const std::string &meshesPath)
       : T_SC_(T_SC), T_CS_(T_SC.inverse()), sensor_(cameraConfig), mapConfig_(mapConfig),
         dataConfig_(dataConfig), meshesPath_(meshesPath) {
-
+    
     se::OccupancyMap<se::Res::Multi> map(mapConfig_, dataConfig_);
     no_kf_yet = true;
     latestKeyframeId = 1;
-
   };
 
   /**
@@ -365,6 +365,9 @@ private:
   // We use this to store the active keyframe in predict(), to prepare the supereightframe
   uint64_t latestKeyframeId;
   bool no_kf_yet;
+
+  // Need this to extract okvis estimates at abitrary timestamps
+  okvis::Trajectory propagatedStates;
 
 };
 

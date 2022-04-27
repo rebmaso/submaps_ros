@@ -476,7 +476,7 @@ void SupereightInterface::display() {
 
 bool SupereightInterface::stateUpdateCallback(
     const State &latestState, const TrackingState &latestTrackingState,
-    std::shared_ptr<const okvis::AlignedVector<State>> keyframeStates) {
+    std::shared_ptr<const okvis::AlignedVector<State>> keyframeStates) {  
 
   // Assemble OKVIS updates in a struct and push in the corresponding Queue.
   OkvisUpdate latestStateData(latestState, 
@@ -486,9 +486,13 @@ bool SupereightInterface::stateUpdateCallback(
                               latestTrackingState.currentKeyframeId.value(),
                               latestTrackingState.recognisedPlace);
   const size_t stateUpdateQueue = 100; ///< 5 seconds of data at 20Hz.
+
+  std::set<StateId> affectedStateIds; // dummy, output needed by okvis trajectory
+  // okvis trajectory should still work if i pass only updated keyframes (and not the whole updated states vector)
+  propagatedStates.update(latestState, latestTrackingState, keyframeStates, affectedStateIds);
+
   if (blocking_) {
-    const bool result =
-        stateUpdates_.PushBlockingIfFull(latestStateData, stateUpdateQueue);
+    const bool result = stateUpdates_.PushBlockingIfFull(latestStateData, stateUpdateQueue);
     cvNewSensorMeasurements_.notify_one();
     return result;
   } else {

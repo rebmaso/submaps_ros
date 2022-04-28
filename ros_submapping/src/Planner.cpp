@@ -172,6 +172,10 @@ bool Planner::plan()
   // get optimal path
   // path.reset(&(ss->getSolutionPath())); // which way is correct?
   *path = ss->getSolutionPath();
+
+  og::PathSimplifier path_simp(ss->getSpaceInformation()); // path simplifier
+  path_simp.simplify(*path,0.05); // "simplify" the path
+  path_simp.smoothBSpline(*path); // smooth the path
   
   // send path to visualizer
   if(pathCallback_) {

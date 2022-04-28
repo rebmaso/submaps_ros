@@ -828,7 +828,7 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
 
   // Iterate over the octree, creating a different CUBE_LIST marker for each
   // volume size and state.
-  std::map<int, visualization_msgs::Marker> markers_free;
+  // std::map<int, visualization_msgs::Marker> markers_free;
   std::map<int, visualization_msgs::Marker> markers_occupied;
   std::map<int, visualization_msgs::Marker> markers_unknown;
 
@@ -838,18 +838,20 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
   // iterate over submaps
   for (auto& it: submapLookup) {
 
+  const Eigen::Matrix4d T_wm = (*it.second)->getTWM().cast<double>(); // map wrt "odom", which is the kf
+  const Eigen::Matrix4d T_wf = submapPoseLookup[it.first].T(); // kf wrt world
+
   auto octree_ptr = (*it.second)->getOctree();
 
   for (auto octant_it = se::LeavesIterator<OctreeT>(octree_ptr.get()); octant_it != se::LeavesIterator<OctreeT>(); ++octant_it) {
       
       const auto octant_ptr = *octant_it;
-      int node_size;
-      int node_scale;
 
       // Differentiate between block and node processing
 
       // IF BLOCK
       if (octant_ptr->isBlock()) {
+
         // If the leaf is a block we'll need to iterate over all voxels at the current scale
         typedef typename OctreeT::BlockType BlockType;
         const Eigen::Vector3i block_coord = octant_ptr->getCoord();
@@ -867,7 +869,7 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
                   const Eigen::Vector3f node_centre_meter = (node_coord.template cast<float>() + Eigen::Vector3f::Constant((float) node_size / 2)) * (*it.second)->getRes();
                   const auto data = block_ptr->getData(node_coord);
 
-                  if (data.occupancy * data.weight < 0) { // FREE VOXELS
+                  if (data.occupancy * data.weight < -0.2) { // FREE VOXELS
                       continue;
                   }
 
@@ -916,14 +918,13 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
                   }
                   // Append the current voxel.
                   const Eigen::Vector4d p_mp(node_centre_meter[0],node_centre_meter[1],node_centre_meter[2],1); // p wrt map (homogenous)
-                  const Eigen::Matrix4d T_wm = (*it.second)->getTWM().cast<double>(); // map wrt "odom", which is the kf
-                  const Eigen::Matrix4d T_wf = submapPoseLookup[it.first].T(); // kf wrt world
                   const Eigen::Vector4d p_eigen = T_wf*T_wm*p_mp; // p wrt world (homogenous)
                   
                   geometry_msgs::Point p;
                   p.x = p_eigen[0];
                   p.y = p_eigen[1];
                   p.z = p_eigen[2];
+                  // if(data.occupancy * data.weight <= 0) std::cout << p << "\n";
                   (*markers)[size].points.push_back(p);
 
                 } // z
@@ -932,43 +933,72 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
       }
       // IF NODE
       else {
-        // const auto data = static_cast<typename OctreeT::NodeType*>(octant_ptr)->getMaxData();
-        // // Again decide which nodes to ignore
-        // if (data.occupancy * data.weight <= 0) {
-        //     continue;
-        // }
-        // node_size = static_cast<typename OctreeT::NodeType*>(octant_ptr)->getSize();
-        // // Since we don't care about the node scale, just set it to a number that will result in
-        // // a gray color when saving the mesh.
-        // node_scale = 7;
 
-        // // TO BE REPLACED WITH RVIZ MARKERS
-        
-        // // Get the coordinates of the octant vertices.
-        // Eigen::Vector3f node_corners[8];
-        // const Eigen::Vector3i node_coord = octant_ptr->getCoord();
-        // node_corners[0] = node_coord.cast<float>();
-        // node_corners[1] = (node_coord + Eigen::Vector3i(node_size, 0, 0)).cast<float>();
-        // node_corners[2] = (node_coord + Eigen::Vector3i(0, node_size, 0)).cast<float>();
-        // node_corners[3] = (node_coord + Eigen::Vector3i(node_size, node_size, 0)).cast<float>();
-        // node_corners[4] = (node_coord + Eigen::Vector3i(0, 0, node_size)).cast<float>();
-        // node_corners[5] = (node_coord + Eigen::Vector3i(node_size, 0, node_size)).cast<float>();
-        // node_corners[6] = (node_coord + Eigen::Vector3i(0, node_size, node_size)).cast<float>();
-        // node_corners[7] =
-        //     (node_coord + Eigen::Vector3i(node_size, node_size, node_size)).cast<float>();
+        const auto data = static_cast<typename OctreeT::NodeType*>(octant_ptr)->getMaxData();
+        // Again decide which nodes to ignore
+        if (data.occupancy * data.weight <= -0.2) {
+            continue;
+        }
 
-        // // The Quad::num_vertexes vertex indices to node_corners for each of the 6 faces.
-        // int face_vertex_idx[6][Quad::num_vertexes] = {
-        //     {0, 1, 3, 2}, {1, 5, 7, 3}, {5, 7, 6, 4}, {0, 2, 6, 4}, {0, 1, 5, 4}, {2, 3, 7, 6}};
-        
-        // // Create the octant faces.
-        // for (int f = 0; f < 6; ++f) {
-        //     mesh.emplace_back();
-        //     for (size_t v = 0; v < Quad::num_vertexes; ++v) {
-        //         mesh.back().vertexes[v] = node_corners[face_vertex_idx[f][v]];
-        //         mesh.back().max_vertex_scale = node_scale;
-        //     }
-        // }
+        std::map<int, visualization_msgs::Marker>* markers = nullptr;
+        std::string ns;
+        std_msgs::ColorRGBA volume_color;
+
+        if(data.occupancy * data.weight > 0){ // OCCUPIED NODE
+          markers = &markers_occupied;
+          ns = "map_occupied";
+          volume_color.r = color_occupied_.x();
+          volume_color.g = color_occupied_.y();
+          volume_color.b = color_occupied_.z();
+          volume_color.a = color_occupied_.w();
+        }
+
+        else { // UNKNOWN NODE
+          markers = &markers_unknown;
+          ns = "map_unknown";
+          volume_color.r = color_unknown_.x();
+          volume_color.g = color_unknown_.y();
+          volume_color.b = color_unknown_.z();
+          volume_color.a = color_unknown_.w();
+        }
+
+        const int node_size = static_cast<typename OctreeT::NodeType*>(octant_ptr)->getSize();
+        const int size = node_size;
+        float resolution = (*it.second)->getRes();
+        if (markers->count(size) == 0) {
+          // Initialize the Marker message for this node size.
+          (*markers)[size] = visualization_msgs::Marker();
+          (*markers)[size].header = header;
+          (*markers)[size].ns = ns;
+          (*markers)[size].id = size;
+          (*markers)[size].type = visualization_msgs::Marker::CUBE_LIST;
+          (*markers)[size].action = visualization_msgs::Marker::ADD;
+          (*markers)[size].pose.orientation.x = 0.0;
+          (*markers)[size].pose.orientation.y = 0.0;
+          (*markers)[size].pose.orientation.z = 0.0;
+          (*markers)[size].pose.orientation.w = 1.0;
+          (*markers)[size].scale.x = size*resolution;
+          (*markers)[size].scale.y = size*resolution;
+          (*markers)[size].scale.z = size*resolution;
+          (*markers)[size].color = volume_color;
+          (*markers)[size].lifetime = ros::Duration(0.0);
+          (*markers)[size].frame_locked = true;
+        }
+
+        // Append the current voxel.
+
+        const Eigen::Vector3i node_coord = octant_ptr->getCoord();
+        const Eigen::Vector3f node_centre_meter = (node_coord.template cast<float>() + Eigen::Vector3f::Constant((float) node_size / 2)) * (*it.second)->getRes();
+
+        const Eigen::Vector4d p_mp(node_centre_meter[0],node_centre_meter[1],node_centre_meter[2],1); // p wrt map (homogenous)
+        const Eigen::Vector4d p_eigen = T_wf*T_wm*p_mp; // p wrt world (homogenous)
+
+        geometry_msgs::Point p;
+        p.x = p_eigen[0];
+        p.y = p_eigen[1];
+        p.z = p_eigen[2];
+        (*markers)[size].points.push_back(p);
+
       }
 
       // Publish all markers.
@@ -978,16 +1008,15 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
       for (const auto& marker : markers_occupied) {
         map_occupied_pub_.publish(marker.second);
       }
-      // for (const auto& marker : markers_unknown) {
-      //   map_unknown_pub_.publish(marker.second);
-      // }
+      for (const auto& marker : markers_unknown) {
+        map_unknown_pub_.publish(marker.second);
+      }
   }
 
   }
 
   }
 }
-
 void Publisher::publishPathAsCallback(const ompl::geometric::PathGeometric & path)
 {
   

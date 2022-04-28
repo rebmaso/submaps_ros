@@ -367,9 +367,9 @@ class Publisher
   ros::Publisher map_unknown_pub_;
 
   // Block visualization colors
-  const Eigen::Vector4f color_occupied_ = Eigen::Vector4f(1.0, 1.0, 1.0, 1.0);
+  const Eigen::Vector4f color_occupied_ = Eigen::Vector4f(1.0, 0.0, 0.0, 1.0);
   const Eigen::Vector4f color_free_ = Eigen::Vector4f(0.0, 1.0, 0.0, 0.5);
-  const Eigen::Vector4f color_unknown_ = Eigen::Vector4f(0.0, 0.0, 0.0, 0.5);
+  const Eigen::Vector4f color_unknown_ = Eigen::Vector4f(0.0, 0.0, 1.0, 0.7);
 
   // Submap meshes colors
 

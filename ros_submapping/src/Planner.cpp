@@ -289,7 +289,7 @@ bool Planner::detectCollision(const ompl::base::State *state)
         
         // when done iterating over submaps, check total occupancy / check if unmapped
 
-        if(tot_occupancy >= 0) {
+        if(tot_occupancy >= -20) {
           // std::cout << "\n \n OCCUPIED! \n \n";
           return false; // occupied!
         }

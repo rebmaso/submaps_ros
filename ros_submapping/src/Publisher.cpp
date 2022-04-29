@@ -869,7 +869,7 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
                   const Eigen::Vector3f node_centre_meter = (node_coord.template cast<float>() + Eigen::Vector3f::Constant((float) node_size / 2)) * (*it.second)->getRes();
                   const auto data = block_ptr->getData(node_coord);
 
-                  if (data.occupancy * data.weight < -0.2) { // FREE VOXELS
+                  if (data.occupancy * data.weight < -20 || data.weight == 0) { // FREE VOXELS
                       continue;
                   }
 
@@ -877,7 +877,8 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
                   std::string ns;
                   std_msgs::ColorRGBA volume_color;
 
-                  if(data.occupancy * data.weight > 0){ // OCCUPIED VOXELS
+                  // if(data.occupancy * data.weight > 0){ // OCCUPIED VOXELS
+                  if(true) {
                     markers = &markers_occupied;
                     ns = "map_occupied";
                     volume_color.r = color_occupied_.x();
@@ -886,14 +887,14 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
                     volume_color.a = color_occupied_.w();
                   }
 
-                  else { // UNKNOWN VOXELS
-                    markers = &markers_unknown;
-                    ns = "map_unknown";
-                    volume_color.r = color_unknown_.x();
-                    volume_color.g = color_unknown_.y();
-                    volume_color.b = color_unknown_.z();
-                    volume_color.a = color_unknown_.w();
-                  }
+                  // else { // UNKNOWN VOXELS
+                  //   markers = &markers_unknown;
+                  //   ns = "map_unknown";
+                  //   volume_color.r = color_unknown_.x();
+                  //   volume_color.g = color_unknown_.y();
+                  //   volume_color.b = color_unknown_.z();
+                  //   volume_color.a = color_unknown_.w();
+                  // }
 
                   const int size = node_size;
                   float resolution = (*it.second)->getRes();
@@ -936,7 +937,7 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
 
         const auto data = static_cast<typename OctreeT::NodeType*>(octant_ptr)->getMaxData();
         // Again decide which nodes to ignore
-        if (data.occupancy * data.weight <= -0.2) {
+        if (data.occupancy * data.weight <= -20 || data.weight == 0) {
             continue;
         }
 
@@ -944,7 +945,8 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
         std::string ns;
         std_msgs::ColorRGBA volume_color;
 
-        if(data.occupancy * data.weight > 0){ // OCCUPIED NODE
+        // if(data.occupancy * data.weight > 0){ // OCCUPIED NODE
+        if(true) {
           markers = &markers_occupied;
           ns = "map_occupied";
           volume_color.r = color_occupied_.x();
@@ -953,14 +955,14 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
           volume_color.a = color_occupied_.w();
         }
 
-        else { // UNKNOWN NODE
-          markers = &markers_unknown;
-          ns = "map_unknown";
-          volume_color.r = color_unknown_.x();
-          volume_color.g = color_unknown_.y();
-          volume_color.b = color_unknown_.z();
-          volume_color.a = color_unknown_.w();
-        }
+        // else { // UNKNOWN NODE
+        //   markers = &markers_unknown;
+        //   ns = "map_unknown";
+        //   volume_color.r = color_unknown_.x();
+        //   volume_color.g = color_unknown_.y();
+        //   volume_color.b = color_unknown_.z();
+        //   volume_color.a = color_unknown_.w();
+        // }
 
         const int node_size = static_cast<typename OctreeT::NodeType*>(octant_ptr)->getSize();
         const int size = node_size;

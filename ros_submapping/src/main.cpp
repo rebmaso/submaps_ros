@@ -248,7 +248,7 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
   // mesh version:
   se_interface->setSubmapMeshesCallback(std::bind(&Publisher::publishSubmapMeshesAsCallback, &publisher, std::placeholders::_1));
   // block version:
-  // se_interface->setSubmapCallback(std::bind(&Publisher::publishSubmapsAsCallback, &publisher, std::placeholders::_1,std::placeholders::_2));
+  //se_interface->setSubmapCallback(std::bind(&Publisher::publishSubmapsAsCallback, &publisher, std::placeholders::_1,std::placeholders::_2));
 
   // trigger plan() every time a new submap is created
   // se_interface->setReplanCallback(std::bind(&Planner::plan, planner));
@@ -375,11 +375,17 @@ void RosInterfacer::imgsCallback(const sensor_msgs::ImageConstPtr& img_0, const 
 void RosInterfacer::depthCallback(const sensor_msgs::ImageConstPtr& img){
 
   
-  cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(img);
+  // cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(img,"32FC1");
+  cv::Mat raw_depth(img->height, img->width, CV_32FC1, const_cast<uint8_t*>(&img->data[0]), img->step);
   okvis::Time t(img->header.stamp.sec, img->header.stamp.nsec);
   t -= okvis::Duration(parameters.camera.image_delay);
 
-  if (!se_interface->addDepthImage(t, cv_ptr->image))
+  // if (!se_interface->addDepthImage(t, cv_ptr->image))
+  //   LOG(WARNING) << "Depth frame delayed at time "<<t;
+
+  // std::cout << cv_ptr->image << "\n";
+
+  if (!se_interface->addDepthImage(t, raw_depth)) 
     LOG(WARNING) << "Depth frame delayed at time "<<t;
 
 }

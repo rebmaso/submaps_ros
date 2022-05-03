@@ -723,9 +723,9 @@ void SupereightInterface::doSpatialHashing(const uint64_t id, const Transformati
   // need to take all points -> use <=
   for (float x = min_box_metres(0); x <= max_box_metres(0); x+=step)
         {
-          for (float y = min_box_metres(1); y < max_box_metres(1); y+=step)
+          for (float y = min_box_metres(1); y <= max_box_metres(1); y+=step)
           {
-            for (float z = min_box_metres(2); z < max_box_metres(2); z+=step)
+            for (float z = min_box_metres(2); z <= max_box_metres(2); z+=step)
             {
               
               // get offset value (this pos is in map frame)

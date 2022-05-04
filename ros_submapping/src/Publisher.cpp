@@ -838,6 +838,9 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
   // iterate over submaps
   for (auto& it: submapLookup) {
 
+  const auto id = it.first;
+  const unsigned int idx = id % submap_colors.size(); 
+
   const Eigen::Matrix4d T_wm = (*it.second)->getTWM().cast<double>(); // map wrt "odom", which is the kf
   const Eigen::Matrix4d T_wf = submapPoseLookup[it.first].T(); // kf wrt world
 
@@ -881,10 +884,10 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
                   if(true) {
                     markers = &markers_occupied;
                     ns = "map_occupied";
-                    volume_color.r = color_occupied_.x();
-                    volume_color.g = color_occupied_.y();
-                    volume_color.b = color_occupied_.z();
-                    volume_color.a = color_occupied_.w();
+                    volume_color.r = submap_colors[idx](1);
+                    volume_color.g = submap_colors[idx](2);
+                    volume_color.b = submap_colors[idx](3);
+                    volume_color.a = submap_colors[idx](0);
                   }
 
                   // else { // UNKNOWN VOXELS
@@ -949,10 +952,10 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
         if(true) {
           markers = &markers_occupied;
           ns = "map_occupied";
-          volume_color.r = color_occupied_.x();
-          volume_color.g = color_occupied_.y();
-          volume_color.b = color_occupied_.z();
-          volume_color.a = color_occupied_.w();
+          volume_color.r = submap_colors[idx](1);
+          volume_color.g = submap_colors[idx](2);
+          volume_color.b = submap_colors[idx](3);
+          volume_color.a = submap_colors[idx](0);
         }
 
         // else { // UNKNOWN NODE

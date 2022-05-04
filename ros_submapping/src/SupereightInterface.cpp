@@ -193,8 +193,14 @@ void SupereightInterface::processSupereightFrames() {
 
     // if a loop closure was detected, redo hashing
     if(supereightFrame.loop_closure) {
-      std::thread hashing_thread(&SupereightInterface::redoSpatialHashing, this, submapLookup_, submapPoseLookup_);
-      hashing_thread.detach();
+      std::vector<uint64_t> ids;
+      for (auto &keyframeData : supereightFrame.keyFrameDataVec) {
+        uint64_t id = keyframeData.id;
+        if (!submapLookup_.count(keyframeData.id) || !submapPoseLookup_.count(keyframeData.id)) continue; 
+        std::cout << "LC - Rehashing map " << id << "\n";
+        std::thread hashing_thread(&SupereightInterface::redoSpatialHashing, this, id, submapPoseLookup_[id], submapLookup_[id]);
+        hashing_thread.detach();
+      }
     }
 
     // Chech whether we need to create a new submap. --> integrate in new or existing map?
@@ -220,7 +226,7 @@ void SupereightInterface::processSupereightFrames() {
 
         std::cout << "Completed integrating submap " << prevKeyframeId << "\n";
 
-        // do the spatial hashing (do it threaded)
+        // do the spatial hashing
         std::thread hashing_thread(&SupereightInterface::doSpatialHashing, this, prevKeyframeId, submapPoseLookup_[prevKeyframeId], submapLookup_[prevKeyframeId]);
         hashing_thread.detach();
 
@@ -419,84 +425,72 @@ void SupereightInterface::fixReadLookups()
 }
 
 // dont change pass by value
-void SupereightInterface::redoSpatialHashing(std::unordered_map<uint64_t, SubmapList::iterator> maplookup,
-                                            std::unordered_map<uint64_t, Transformation> poselookup) 
+void SupereightInterface::redoSpatialHashing(const uint64_t id, const Transformation Tf, const SubmapList::iterator map) 
 {   
-  using namespace std::chrono_literals;
 
-  std::this_thread::sleep_for(100ms);
+  std::unique_lock<std::mutex> lk(hashTableMutex_);
 
-  hashTableMutex_.lock();
+  auto T_KM = (*(map))->getTWM();
+  auto T_WK = Tf.T();
+  auto T_WM = T_WK.cast<float>() * T_KM;
 
-  std::cout << "Loop closure: re-assigning spatial hash table \n";
+  // sanity checks
+  if (!submapDimensionLookup_.count(id) || !hashTableInverse_.count(id))
+  throw std::runtime_error("redospatialhashing");
 
-  for (auto &it : hashTableInverse_) {
+  // get map bounds
+  Eigen::Matrix<float,6,1> bounds = submapDimensionLookup_[id]; 
 
-    const auto id = it.first;
-    
-    // if index not in hash map, discard
-    if (!hashTableInverse_.count(id)) continue;
+  Eigen::Vector3f min_box_metres = {bounds(0),bounds(1),bounds(2)};
+  Eigen::Vector3f max_box_metres = {bounds(3),bounds(4),bounds(5)};
 
-    Eigen::Matrix<float,6,1> bounds = submapDimensionLookup_[id];
+  // remove boxes for "id" submap
+  for (auto &pos : hashTableInverse_[id])
+  {
+    hashTable_[pos].erase(id); // remove id from box
+    hashTableInverse_[id].erase(pos); // remove box from id
+  }  
 
-    Eigen::Vector3f min_box_metres = {bounds(0),bounds(1),bounds(2)};
-    Eigen::Vector3f max_box_metres = {bounds(3),bounds(4),bounds(5)};
-            
-    // std::cout << "   Submap " << id <<  "\n";
+  const float side = 1.0; // hardcoded hash map box side of 1m
+  const float step = 0.5 * side * sqrt(2); // this ensures full cover of submap space
 
-    // remove boxes for "id" submap
-    for (auto &pos : hashTableInverse_[id])
+
+  for (float x = min_box_metres(0); x <= max_box_metres(0); x+=step)
+  {
+    for (float y = min_box_metres(1); y <= max_box_metres(1); y+=step)
     {
-      hashTable_[pos].erase(id); // remove id from box
-      hashTableInverse_[id].erase(pos); // remove box from id
-    }          
-    
-    auto T_KM = (*(maplookup[id]))->getTWM();
-    auto T_WK = poselookup[id].T();
-    auto T_WM = T_WK.cast<float>() * T_KM;
-
-    const float side = 1.0; // hardcoded hash map box side of 1m
-    const float step = 0.5 * side * sqrt(2); // this ensures full cover of submap space
-
-
-    for (float x = min_box_metres(0); x <= max_box_metres(0); x+=step)
-    {
-      for (float y = min_box_metres(1); y <= max_box_metres(1); y+=step)
+      for (float z = min_box_metres(2); z <= max_box_metres(2); z+=step) 
       {
-        for (float z = min_box_metres(2); z <= max_box_metres(2); z+=step) 
+        
+        // get offset value (this pos is in map frame)
+        Eigen::Vector4f pos_map(x,y,z,1);
+
+        // transform into world frame
+        Eigen::Vector4f pos_world;
+        pos_world = T_WM * pos_map;
+
+        // floor transformed value
+        Eigen::Vector3i pos_floor;
+        for (int i = 0 ; i < 3 ; i++)
         {
-          
-          // get offset value (this pos is in map frame)
-          Eigen::Vector4f pos_map(x,y,z,1);
-
-          // transform into world frame
-          Eigen::Vector4f pos_world;
-          pos_world = T_WM * pos_map;
-
-          // floor transformed value
-          Eigen::Vector3i pos_floor;
-          for (int i = 0 ; i < 3 ; i++)
-          {
-            // if side is e.g. 2, a value of 4.5,4.5,4.5 is mapped to box 2,2,2
-            pos_floor(i) = (int)(floor(pos_world(i)/side));
-          }
-
-          // std::cout << "   box \n " << pos_floor <<  "\n";
-
-          // add to index 
-          hashTable_[pos_floor].insert(id);
-
-          // add pos to inverse index
-          hashTableInverse_[id].insert(pos_floor);
+          // if side is e.g. 2, a value of 4.5,4.5,4.5 is mapped to box 2,2,2
+          pos_floor(i) = (int)(floor(pos_world(i)/side));
         }
-      }
-    }          
-  }
 
-  hashTableMutex_.unlock();
+        // std::cout << "   box \n " << pos_floor <<  "\n";
+
+        // add to index 
+        hashTable_[pos_floor].insert(id);
+
+        // add pos to inverse index
+        hashTableInverse_[id].insert(pos_floor);
+      }
+    }
+  }    
+
+  lk.unlock();
 
 }
-
 // pass by value needed
 void SupereightInterface::doPrelimSpatialHashing(const uint64_t id, const Eigen::Vector3d pos_kf)
 {
@@ -521,7 +515,7 @@ void SupereightInterface::doPrelimSpatialHashing(const uint64_t id, const Eigen:
     max_box(i) = floor((pos_kf(i) + box_side)/side);
   }
 
-  hashTableMutex_.lock();
+  std::unique_lock<std::mutex> lk(hashTableMutex_);
 
   // std::cout << "PRELIM HASHING \n";
 
@@ -549,33 +543,13 @@ void SupereightInterface::doPrelimSpatialHashing(const uint64_t id, const Eigen:
       }
     }        
 
-  hashTableMutex_.unlock();
+  lk.unlock();
 
 }
 
 // do not change pass by value
 void SupereightInterface::doSpatialHashing(const uint64_t id, const Transformation Tf, const SubmapList::iterator map) 
 { 
-  // if we already hashed this map, do nothing
-  // if (hashTableInverse_.count(id)) return;
-
-  hashTableMutex_.lock();
-
-  // std::cout << "HASHING \n";
-
-  // we first need to get rid of the preliminary indexing we did when 
-  // creating map (we indexed a 10x10x10 box)
-  if (hashTableInverse_.count(id)) 
-  { // this should always be the case
-    for (auto &pos : hashTableInverse_[id])
-    {
-      hashTable_[pos].erase(id); // remove id from box
-      hashTableInverse_[id].erase(pos); // remove box from id
-      submapDimensionLookup_.erase(id); // remve dimensions
-    } 
-  }
-
-  hashTableMutex_.unlock();
 
   Eigen::Vector3i min_box(1000,1000,1000);
   Eigen::Vector3i max_box(-1000,-1000,-1000);
@@ -701,6 +675,20 @@ void SupereightInterface::doSpatialHashing(const uint64_t id, const Transformati
   // so to do hashing we must transform this box to the world frame by using this transformation
   // just like I did before with the stupid hashing. but with a double transformation
 
+  std::unique_lock<std::mutex> lk(hashTableMutex_);
+
+  // we first need to get rid of the preliminary indexing we did when 
+  // creating map (we indexed a 10x10x10 box)
+  if (hashTableInverse_.count(id)) 
+  { // this should always be the case
+    for (auto &pos : hashTableInverse_[id])
+    {
+      hashTable_[pos].erase(id); // remove id from box
+      hashTableInverse_[id].erase(pos); // remove box from id
+      submapDimensionLookup_.erase(id); // remve dimensions
+    } 
+  }
+
   // std::cout << "Map dimensions (meters): \nmin \n" << min_box_metres << "\nmax \n" << max_box_metres << "\n";
 
   // insert map bounds in the lookup
@@ -717,8 +705,6 @@ void SupereightInterface::doSpatialHashing(const uint64_t id, const Transformati
 
   // Eigen::Vector3i minbounds(100,100,100);
   // Eigen::Vector3i maxbounds(-100,-100,-100);
-
-  hashTableMutex_.lock();
   
   // need to take all points -> use <=
   for (float x = min_box_metres(0); x <= max_box_metres(0); x+=step)
@@ -759,7 +745,7 @@ void SupereightInterface::doSpatialHashing(const uint64_t id, const Transformati
           }
         }
 
-  hashTableMutex_.unlock();
+  lk.unlock();
 
   // auto kf_pos = submapPoseLookup_[id].r(); 
   // std::cout << "Keyframe position: " << kf_pos(0) << " " << kf_pos(1) << " " << kf_pos(2) << "\n";

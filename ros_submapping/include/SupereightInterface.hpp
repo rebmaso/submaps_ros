@@ -294,8 +294,7 @@ private:
    * @brief   Re assign spatial hash table for kfs involved in loop closure
    * We pass lookups to fix them and avoid segfaults
    */
-  void redoSpatialHashing(std::unordered_map<uint64_t, SubmapList::iterator> maplookup,
-                          std::unordered_map<uint64_t, Transformation> poselookup);
+  void redoSpatialHashing(const uint64_t id, const Transformation Tf, const SubmapList::iterator map);
 
   /**
    * @brief   Pre-index new map as soon as we start integrating

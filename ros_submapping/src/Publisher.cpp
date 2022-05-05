@@ -64,22 +64,22 @@ Publisher::Publisher()
 
 Publisher::~Publisher()
 {
-  // close file
-  if (csvLandmarksFile_) {
-    // write down also the current landmarks
-    if (csvLandmarksFile_->good()) {
-      for (size_t l = 0; l < pointsMatched2_.size(); ++l) {
-        Eigen::Vector4d landmark = pointsMatched2_.at(l).point;
-        *csvLandmarksFile_ << std::setprecision(19) << pointsMatched2_.at(l).id
-            << ", " << std::scientific << std::setprecision(18) << landmark[0]
-            << ", " << landmark[1] << ", " << landmark[2] << ", " << landmark[3]
-            << ", " << pointsMatched2_.at(l).quality << std::endl;
-      }
-    }
-    csvLandmarksFile_->close();
-  }
-  if (csvFile_)
-    csvFile_->close();
+  // // close file
+  // if (csvLandmarksFile_) {
+  //   // write down also the current landmarks
+  //   if (csvLandmarksFile_->good()) {
+  //     for (size_t l = 0; l < pointsMatched2_.size(); ++l) {
+  //       Eigen::Vector4d landmark = pointsMatched2_.at(l).point;
+  //       *csvLandmarksFile_ << std::setprecision(19) << pointsMatched2_.at(l).id
+  //           << ", " << std::scientific << std::setprecision(18) << landmark[0]
+  //           << ", " << landmark[1] << ", " << landmark[2] << ", " << landmark[3]
+  //           << ", " << pointsMatched2_.at(l).quality << std::endl;
+  //     }
+  //   }
+  //   csvLandmarksFile_->close();
+  // }
+  // if (csvFile_)
+  //   csvFile_->close();
 }
 
 // Constructor. Calls setNodeHandle().
@@ -95,12 +95,12 @@ void Publisher::setNodeHandle(ros::NodeHandle& nh)
   nh_ = &nh;
 
   // advertise
-  pubPointsMatched_ = nh_->advertise<sensor_msgs::PointCloud2>(
-      "okvis_points_matched", 1);
-  pubPointsUnmatched_ = nh_->advertise<sensor_msgs::PointCloud2>(
-      "okvis_points_unmatched", 1);
-  pubPointsTransferred_ = nh_->advertise<sensor_msgs::PointCloud2>(
-      "okvis_points_transferred", 1);
+  // pubPointsMatched_ = nh_->advertise<sensor_msgs::PointCloud2>(
+  //     "okvis_points_matched", 1);
+  // pubPointsUnmatched_ = nh_->advertise<sensor_msgs::PointCloud2>(
+  //     "okvis_points_unmatched", 1);
+  // pubPointsTransferred_ = nh_->advertise<sensor_msgs::PointCloud2>(
+  //     "okvis_points_transferred", 1);
   pubObometry_ = nh_->advertise<nav_msgs::Odometry>("okvis_odometry", 1);
   pubPath_ = nh_->advertise<nav_msgs::Path>("okvis_path", 1);
   pubTransform_ = nh_->advertise<geometry_msgs::TransformStamped>(
@@ -111,21 +111,13 @@ void Publisher::setNodeHandle(ros::NodeHandle& nh)
       "okvis_marker_odometry", 1);
   pubMesh_ = nh_->advertise<visualization_msgs::Marker>( "okvis_mesh", 0 );
   // where to get the mesh from
-  std::string mesh_file;
-  if (nh_->getParam("mesh_file", mesh_file)) {
-    meshMsg_.mesh_resource = "package://okvis_ros/meshes/"+mesh_file;
-  } else {
-    LOG(INFO) << "no mesh found for visualisation, set ros param mesh_file, if desired";
-    meshMsg_.mesh_resource = "";
-  }
+  meshMsg_.mesh_resource = "package://rviz_submapping/meshes/quadrotor.dae";
   
   // stuff by Tommaso
   pubKeyframes_ = nh_->advertise<visualization_msgs::MarkerArray>("okvis_keyframe_poses", 0);
   pubSubmaps_ = nh_->advertise<visualization_msgs::MarkerArray>( "se_submaps", 0 );
   pubOMPLPath_ = nh_->advertise<nav_msgs::Path>( "ompl_path", 0 );
-  map_free_pub_ = nh_->advertise<visualization_msgs::Marker>("se_map_free", 1);
-  map_occupied_pub_ = nh_->advertise<visualization_msgs::Marker>("se_map_occupied", 1);
-  map_unknown_pub_ = nh_->advertise<visualization_msgs::Marker>("se_map_unknown", 1);
+  map_occupied_pub_ = nh_->advertise<visualization_msgs::MarkerArray>("se_map_occupied", 1);
 
 }
 
@@ -256,7 +248,7 @@ void Publisher::setPose(const okvis::kinematics::Transformation& T_WS)
   } else {
     meshMsg_.child_frame_id = "body";
   }*/
-  meshMsg_.header.frame_id = "body";
+  meshMsg_.header.frame_id = "okvis_tracking";
   meshMsg_.header.stamp = _t;
   meshMsg_.type = visualization_msgs::Marker::MESH_RESOURCE;
   if ((ros::Time::now() - _t).toSec() > 10.0)
@@ -382,121 +374,121 @@ void Publisher::setOdometry(const okvis::kinematics::Transformation& T_WS,
 }
 
 
-// Set the points that are published next.
-void Publisher::setPoints(const okvis::MapPointVector& pointsMatched,
-                          const okvis::MapPointVector& pointsUnmatched,
-                          const okvis::MapPointVector& pointsTransferred)
-{
-  pointsMatched2_.clear();
-  pointsMatched2_ = pointsMatched;
-  pointsMatched_.clear();
-  pointsUnmatched_.clear();
-  pointsTransferred_.clear();
+// // Set the points that are published next.
+// void Publisher::setPoints(const okvis::MapPointVector& pointsMatched,
+//                           const okvis::MapPointVector& pointsUnmatched,
+//                           const okvis::MapPointVector& pointsTransferred)
+// {
+//   pointsMatched2_.clear();
+//   pointsMatched2_ = pointsMatched;
+//   pointsMatched_.clear();
+//   pointsUnmatched_.clear();
+//   pointsTransferred_.clear();
 
-  // transform points into custom world frame:
-  const Eigen::Matrix4d T_Wc_W; // = parameters_.publishing.T_Wc_W.T();
-  /// \todo properly from ros params -- also landmark thresholds below
+//   // transform points into custom world frame:
+//   const Eigen::Matrix4d T_Wc_W; // = parameters_.publishing.T_Wc_W.T();
+//   /// \todo properly from ros params -- also landmark thresholds below
 
-  for (size_t i = 0; i < pointsMatched.size(); ++i) {
-    // check infinity
-    if (fabs((double) (pointsMatched[i].point[3])) < 1.0e-8)
-      continue;
+//   for (size_t i = 0; i < pointsMatched.size(); ++i) {
+//     // check infinity
+//     if (fabs((double) (pointsMatched[i].point[3])) < 1.0e-8)
+//       continue;
 
-    // check quality
-    //if (pointsMatched[i].quality < parameters_.publishing.landmarkQualityThreshold)
-    if (pointsMatched[i].quality < 0.01)
-      continue;
+//     // check quality
+//     //if (pointsMatched[i].quality < parameters_.publishing.landmarkQualityThreshold)
+//     if (pointsMatched[i].quality < 0.01)
+//       continue;
 
-    pointsMatched_.push_back(pcl::PointXYZRGB());
-    const Eigen::Vector4d point = T_Wc_W * pointsMatched[i].point;
-    pointsMatched_.back().x = point[0] / point[3];
-    pointsMatched_.back().y = point[1] / point[3];
-    pointsMatched_.back().z = point[2] / point[3];
-    //pointsMatched_.back().g = 255
-    //    * (std::min(parameters_.publishing.maxLandmarkQuality, (float)pointsMatched[i].quality)
-    //        / parameters_.publishing.maxLandmarkQuality);
-    pointsMatched_.back().g = 255
-        * (std::min(0.1f, (float)pointsMatched[i].quality)
-            / 0.1f);
-  }
-  pointsMatched_.header.frame_id = "odom";
+//     pointsMatched_.push_back(pcl::PointXYZRGB());
+//     const Eigen::Vector4d point = T_Wc_W * pointsMatched[i].point;
+//     pointsMatched_.back().x = point[0] / point[3];
+//     pointsMatched_.back().y = point[1] / point[3];
+//     pointsMatched_.back().z = point[2] / point[3];
+//     //pointsMatched_.back().g = 255
+//     //    * (std::min(parameters_.publishing.maxLandmarkQuality, (float)pointsMatched[i].quality)
+//     //        / parameters_.publishing.maxLandmarkQuality);
+//     pointsMatched_.back().g = 255
+//         * (std::min(0.1f, (float)pointsMatched[i].quality)
+//             / 0.1f);
+//   }
+//   pointsMatched_.header.frame_id = "odom";
 
-#if PCL_VERSION >= PCL_VERSION_CALC(1,7,0)
-  std_msgs::Header header;
-  header.stamp = _t;
-  pointsMatched_.header.stamp = pcl_conversions::toPCL(header).stamp;
-#else
-  pointsMatched_.header.stamp=_t;
-#endif
+// #if PCL_VERSION >= PCL_VERSION_CALC(1,7,0)
+//   std_msgs::Header header;
+//   header.stamp = _t;
+//   pointsMatched_.header.stamp = pcl_conversions::toPCL(header).stamp;
+// #else
+//   pointsMatched_.header.stamp=_t;
+// #endif
 
-  for (size_t i = 0; i < pointsUnmatched.size(); ++i) {
-    // check infinity
-    if (fabs((double) (pointsUnmatched[i].point[3])) < 1.0e-8)
-      continue;
+//   for (size_t i = 0; i < pointsUnmatched.size(); ++i) {
+//     // check infinity
+//     if (fabs((double) (pointsUnmatched[i].point[3])) < 1.0e-8)
+//       continue;
 
-    // check quality
-    //if (pointsUnmatched[i].quality < parameters_.publishing.landmarkQualityThreshold)
-    if (pointsUnmatched[i].quality < 0.01)
-      continue;
+//     // check quality
+//     //if (pointsUnmatched[i].quality < parameters_.publishing.landmarkQualityThreshold)
+//     if (pointsUnmatched[i].quality < 0.01)
+//       continue;
 
-    pointsUnmatched_.push_back(pcl::PointXYZRGB());
-    const Eigen::Vector4d point = T_Wc_W * pointsUnmatched[i].point;
-    pointsUnmatched_.back().x = point[0] / point[3];
-    pointsUnmatched_.back().y = point[1] / point[3];
-    pointsUnmatched_.back().z = point[2] / point[3];
-    //pointsUnmatched_.back().b = 255
-    //    * (std::min(parameters_.publishing.maxLandmarkQuality, (float)pointsUnmatched[i].quality)
-    //        / parameters_.publishing.maxLandmarkQuality);
-    pointsUnmatched_.back().b = 255
-        * (std::min(0.1f, (float)pointsUnmatched[i].quality)
-            / 0.1f);
-  }
-  pointsUnmatched_.header.frame_id = "odom";
+//     pointsUnmatched_.push_back(pcl::PointXYZRGB());
+//     const Eigen::Vector4d point = T_Wc_W * pointsUnmatched[i].point;
+//     pointsUnmatched_.back().x = point[0] / point[3];
+//     pointsUnmatched_.back().y = point[1] / point[3];
+//     pointsUnmatched_.back().z = point[2] / point[3];
+//     //pointsUnmatched_.back().b = 255
+//     //    * (std::min(parameters_.publishing.maxLandmarkQuality, (float)pointsUnmatched[i].quality)
+//     //        / parameters_.publishing.maxLandmarkQuality);
+//     pointsUnmatched_.back().b = 255
+//         * (std::min(0.1f, (float)pointsUnmatched[i].quality)
+//             / 0.1f);
+//   }
+//   pointsUnmatched_.header.frame_id = "odom";
 
-#if PCL_VERSION >= PCL_VERSION_CALC(1,7,0)
-  pointsUnmatched_.header.stamp = pcl_conversions::toPCL(header).stamp;
-#else
-  pointsUnmatched_.header.stamp=_t;
-#endif
+// #if PCL_VERSION >= PCL_VERSION_CALC(1,7,0)
+//   pointsUnmatched_.header.stamp = pcl_conversions::toPCL(header).stamp;
+// #else
+//   pointsUnmatched_.header.stamp=_t;
+// #endif
 
-  for (size_t i = 0; i < pointsTransferred.size(); ++i) {
-    // check infinity
+//   for (size_t i = 0; i < pointsTransferred.size(); ++i) {
+//     // check infinity
 
-    if (fabs((double) (pointsTransferred[i].point[3])) < 1.0e-10)
-      continue;
+//     if (fabs((double) (pointsTransferred[i].point[3])) < 1.0e-10)
+//       continue;
 
-    // check quality
-    //if (pointsTransferred[i].quality < parameters_.publishing.landmarkQualityThreshold)
-    if (pointsTransferred[i].quality < 0.01)
-      continue;
+//     // check quality
+//     //if (pointsTransferred[i].quality < parameters_.publishing.landmarkQualityThreshold)
+//     if (pointsTransferred[i].quality < 0.01)
+//       continue;
 
-    pointsTransferred_.push_back(pcl::PointXYZRGB());
-    const Eigen::Vector4d point = T_Wc_W * pointsTransferred[i].point;
-    pointsTransferred_.back().x = point[0] / point[3];
-    pointsTransferred_.back().y = point[1] / point[3];
-    pointsTransferred_.back().z = point[2] / point[3];
-    //float intensity = std::min(parameters_.publishing.maxLandmarkQuality,
-    //                           (float)pointsTransferred[i].quality)
-    //    / parameters_.publishing.maxLandmarkQuality;
-    float intensity = std::min(0.1f,
-                               (float)pointsTransferred[i].quality)
-        / 0.1f;
-    pointsTransferred_.back().r = 255 * intensity;
-    pointsTransferred_.back().g = 255 * intensity;
-    pointsTransferred_.back().b = 255 * intensity;
+//     pointsTransferred_.push_back(pcl::PointXYZRGB());
+//     const Eigen::Vector4d point = T_Wc_W * pointsTransferred[i].point;
+//     pointsTransferred_.back().x = point[0] / point[3];
+//     pointsTransferred_.back().y = point[1] / point[3];
+//     pointsTransferred_.back().z = point[2] / point[3];
+//     //float intensity = std::min(parameters_.publishing.maxLandmarkQuality,
+//     //                           (float)pointsTransferred[i].quality)
+//     //    / parameters_.publishing.maxLandmarkQuality;
+//     float intensity = std::min(0.1f,
+//                                (float)pointsTransferred[i].quality)
+//         / 0.1f;
+//     pointsTransferred_.back().r = 255 * intensity;
+//     pointsTransferred_.back().g = 255 * intensity;
+//     pointsTransferred_.back().b = 255 * intensity;
 
-    //_omfile << point[0] << " " << point[1] << " " << point[2] << ";" <<std::endl;
+//     //_omfile << point[0] << " " << point[1] << " " << point[2] << ";" <<std::endl;
 
-  }
-  pointsTransferred_.header.frame_id = "odom";
-  pointsTransferred_.header.seq = ctr2_++;
+//   }
+//   pointsTransferred_.header.frame_id = "odom";
+//   pointsTransferred_.header.seq = ctr2_++;
 
-#if PCL_VERSION >= PCL_VERSION_CALC(1,7,0)
-  pointsTransferred_.header.stamp = pcl_conversions::toPCL(header).stamp;
-#else
-  pointsTransferred_.header.stamp=_t;
-#endif
-}
+// #if PCL_VERSION >= PCL_VERSION_CALC(1,7,0)
+//   pointsTransferred_.header.stamp = pcl_conversions::toPCL(header).stamp;
+// #else
+//   pointsTransferred_.header.stamp=_t;
+// #endif
+// }
 
 // Publish the pose.
 void Publisher::publishPose()
@@ -636,17 +628,17 @@ void Publisher::csvSaveFullStateWithExtrinsicsAsCallback(
   }
 }
 
-// Set and publish landmarks.
-void Publisher::publishLandmarksAsCallback(
-    const okvis::Time & /*t*/, const okvis::MapPointVector & actualLandmarks,
-    const okvis::MapPointVector & transferredLandmarks)
-{
-  //if(parameters_.publishing.publishLandmarks){
-    okvis::MapPointVector empty;
-    setPoints(actualLandmarks, empty, transferredLandmarks);
-    publishPoints();
-  //}
-}
+// // Set and publish landmarks.
+// void Publisher::publishLandmarksAsCallback(
+//     const okvis::Time & /*t*/, const okvis::MapPointVector & actualLandmarks,
+//     const okvis::MapPointVector & transferredLandmarks)
+// {
+//   //if(parameters_.publishing.publishLandmarks){
+//     okvis::MapPointVector empty;
+//     setPoints(actualLandmarks, empty, transferredLandmarks);
+//     publishPoints();
+//   //}
+// }
 
 
 void Publisher::publishKeyframesAsCallback(const State &latestState, const TrackingState &latestTrackingState, std::shared_ptr<const okvis::AlignedVector<State>> keyframeStates_) {
@@ -671,7 +663,7 @@ void Publisher::publishKeyframesAsCallback(const State &latestState, const Track
   KFmsg_.ns = "kf_ns";
   KFmsg_.id = keyframeStates[i].id.value(); // id of the keyframe
   KFmsg_.type = visualization_msgs::Marker::MESH_RESOURCE;
-  KFmsg_.mesh_resource = "package://rviz_rotors/meshes/camera.stl";
+  KFmsg_.mesh_resource = "package://rviz_submapping/meshes/camera.stl";
   KFmsg_.action = visualization_msgs::Marker::ADD;
   // orientation
   Eigen::Matrix4d T_WC = keyframeStates[i].T_WS.T() * T_SC_;
@@ -826,17 +818,15 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
   header.stamp = ros::Time::now();
   header.frame_id = "odom";
 
-  // Iterate over the octree, creating a different CUBE_LIST marker for each
-  // volume size and state.
-  // std::map<int, visualization_msgs::Marker> markers_free;
-  std::map<int, visualization_msgs::Marker> markers_occupied;
-  std::map<int, visualization_msgs::Marker> markers_unknown;
+  visualization_msgs::MarkerArray markerarraymsg_;
 
-  if(!submapLookup.empty()) // else do nothing
-  {
+  if(submapLookup.empty()) return;
 
   // iterate over submaps
   for (auto& it: submapLookup) {
+  
+  // one cube list per size
+  std::map<int, visualization_msgs::Marker> markers_occupied;
 
   const auto id = it.first;
   const unsigned int idx = id % submap_colors.size(); 
@@ -846,6 +836,7 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
 
   auto octree_ptr = (*it.second)->getOctree();
 
+  // for each leaf (node / voxel block)
   for (auto octant_it = se::LeavesIterator<OctreeT>(octree_ptr.get()); octant_it != se::LeavesIterator<OctreeT>(); ++octant_it) {
       
       const auto octant_ptr = *octant_it;
@@ -862,8 +853,8 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
         // Find current scale of the block leaves and their size
         const int node_scale = block_ptr->getCurrentScale();
         const int node_size  = 1 << node_scale;
-        const Eigen::Vector3f twm = (*it.second)->gettWM();
 
+        // iterate over voxels in block
         for (int x = 0; x < BlockType::getSize(); x += node_size) {
             for (int y = 0; y < BlockType::getSize(); y += node_size) {
                 for (int z = 0; z < BlockType::getSize(); z += node_size) {
@@ -872,53 +863,37 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
                   const Eigen::Vector3f node_centre_meter = (node_coord.template cast<float>() + Eigen::Vector3f::Constant((float) node_size / 2)) * (*it.second)->getRes();
                   const auto data = block_ptr->getData(node_coord);
 
-                  if (data.occupancy * data.weight < -20 || data.weight == 0) { // FREE VOXELS
+                  if (data.occupancy * data.weight < -20 || data.weight == 0) { // FREE / UNOBSERVED VOXELS (this hides unobserved vox, but the planner still treats them as occupied)
                       continue;
                   }
 
-                  std::map<int, visualization_msgs::Marker>* markers = nullptr;
-                  std::string ns;
-                  std_msgs::ColorRGBA volume_color;
-
-                  // if(data.occupancy * data.weight > 0){ // OCCUPIED VOXELS
-                  if(true) {
-                    markers = &markers_occupied;
-                    ns = "map_occupied";
+                  const int size = node_size;
+                  float resolution = (*it.second)->getRes();
+                  if (markers_occupied.count(size) == 0) {
+                    std::string ns;
+                    std_msgs::ColorRGBA volume_color;
+                    ns = "map_occupied_" + std::to_string(id) + "_" + std::to_string(size) + "_V";
                     volume_color.r = submap_colors[idx](1);
                     volume_color.g = submap_colors[idx](2);
                     volume_color.b = submap_colors[idx](3);
                     volume_color.a = submap_colors[idx](0);
-                  }
-
-                  // else { // UNKNOWN VOXELS
-                  //   markers = &markers_unknown;
-                  //   ns = "map_unknown";
-                  //   volume_color.r = color_unknown_.x();
-                  //   volume_color.g = color_unknown_.y();
-                  //   volume_color.b = color_unknown_.z();
-                  //   volume_color.a = color_unknown_.w();
-                  // }
-
-                  const int size = node_size;
-                  float resolution = (*it.second)->getRes();
-                  if (markers->count(size) == 0) {
                     // Initialize the Marker message for this voxel size.
-                    (*markers)[size] = visualization_msgs::Marker();
-                    (*markers)[size].header = header;
-                    (*markers)[size].ns = ns;
-                    (*markers)[size].id = size;
-                    (*markers)[size].type = visualization_msgs::Marker::CUBE_LIST;
-                    (*markers)[size].action = visualization_msgs::Marker::ADD;
-                    (*markers)[size].pose.orientation.x = 0.0;
-                    (*markers)[size].pose.orientation.y = 0.0;
-                    (*markers)[size].pose.orientation.z = 0.0;
-                    (*markers)[size].pose.orientation.w = 1.0;
-                    (*markers)[size].scale.x = size*resolution;
-                    (*markers)[size].scale.y = size*resolution;
-                    (*markers)[size].scale.z = size*resolution;
-                    (*markers)[size].color = volume_color;
-                    (*markers)[size].lifetime = ros::Duration(0.0);
-                    (*markers)[size].frame_locked = true;
+                    markers_occupied[size] = visualization_msgs::Marker();
+                    markers_occupied[size].header = header;
+                    markers_occupied[size].ns = ns;
+                    markers_occupied[size].id = size;
+                    markers_occupied[size].type = visualization_msgs::Marker::CUBE_LIST;
+                    markers_occupied[size].action = visualization_msgs::Marker::ADD;
+                    markers_occupied[size].pose.orientation.x = 0.0;
+                    markers_occupied[size].pose.orientation.y = 0.0;
+                    markers_occupied[size].pose.orientation.z = 0.0;
+                    markers_occupied[size].pose.orientation.w = 1.0;
+                    markers_occupied[size].scale.x = size*resolution;
+                    markers_occupied[size].scale.y = size*resolution;
+                    markers_occupied[size].scale.z = size*resolution;
+                    markers_occupied[size].color = volume_color;
+                    markers_occupied[size].lifetime = ros::Duration(0.0);
+                    markers_occupied[size].frame_locked = true;
                   }
                   // Append the current voxel.
                   const Eigen::Vector4d p_mp(node_centre_meter[0],node_centre_meter[1],node_centre_meter[2],1); // p wrt map (homogenous)
@@ -929,12 +904,13 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
                   p.y = p_eigen[1];
                   p.z = p_eigen[2];
                   // if(data.occupancy * data.weight <= 0) std::cout << p << "\n";
-                  (*markers)[size].points.push_back(p);
+                  markers_occupied[size].points.push_back(p);
 
                 } // z
             } // y
         } // x
-      }
+      } // end if block
+
       // IF NODE
       else {
 
@@ -944,50 +920,34 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
             continue;
         }
 
-        std::map<int, visualization_msgs::Marker>* markers = nullptr;
-        std::string ns;
-        std_msgs::ColorRGBA volume_color;
-
-        // if(data.occupancy * data.weight > 0){ // OCCUPIED NODE
-        if(true) {
-          markers = &markers_occupied;
-          ns = "map_occupied";
+        const int node_size = static_cast<typename OctreeT::NodeType*>(octant_ptr)->getSize();
+        const int size = node_size;
+        float resolution = (*it.second)->getRes();
+        if (markers_occupied.count(size) == 0) {
+          std::string ns;
+          std_msgs::ColorRGBA volume_color;
+          ns = "map_occupied_" + std::to_string(id) + "_" + std::to_string(size) + "_N";
           volume_color.r = submap_colors[idx](1);
           volume_color.g = submap_colors[idx](2);
           volume_color.b = submap_colors[idx](3);
           volume_color.a = submap_colors[idx](0);
-        }
-
-        // else { // UNKNOWN NODE
-        //   markers = &markers_unknown;
-        //   ns = "map_unknown";
-        //   volume_color.r = color_unknown_.x();
-        //   volume_color.g = color_unknown_.y();
-        //   volume_color.b = color_unknown_.z();
-        //   volume_color.a = color_unknown_.w();
-        // }
-
-        const int node_size = static_cast<typename OctreeT::NodeType*>(octant_ptr)->getSize();
-        const int size = node_size;
-        float resolution = (*it.second)->getRes();
-        if (markers->count(size) == 0) {
           // Initialize the Marker message for this node size.
-          (*markers)[size] = visualization_msgs::Marker();
-          (*markers)[size].header = header;
-          (*markers)[size].ns = ns;
-          (*markers)[size].id = size;
-          (*markers)[size].type = visualization_msgs::Marker::CUBE_LIST;
-          (*markers)[size].action = visualization_msgs::Marker::ADD;
-          (*markers)[size].pose.orientation.x = 0.0;
-          (*markers)[size].pose.orientation.y = 0.0;
-          (*markers)[size].pose.orientation.z = 0.0;
-          (*markers)[size].pose.orientation.w = 1.0;
-          (*markers)[size].scale.x = size*resolution;
-          (*markers)[size].scale.y = size*resolution;
-          (*markers)[size].scale.z = size*resolution;
-          (*markers)[size].color = volume_color;
-          (*markers)[size].lifetime = ros::Duration(0.0);
-          (*markers)[size].frame_locked = true;
+          markers_occupied[size] = visualization_msgs::Marker();
+          markers_occupied[size].header = header;
+          markers_occupied[size].ns = ns;
+          markers_occupied[size].id = size;
+          markers_occupied[size].type = visualization_msgs::Marker::CUBE_LIST;
+          markers_occupied[size].action = visualization_msgs::Marker::ADD;
+          markers_occupied[size].pose.orientation.x = 0.0;
+          markers_occupied[size].pose.orientation.y = 0.0;
+          markers_occupied[size].pose.orientation.z = 0.0;
+          markers_occupied[size].pose.orientation.w = 1.0;
+          markers_occupied[size].scale.x = size*resolution;
+          markers_occupied[size].scale.y = size*resolution;
+          markers_occupied[size].scale.z = size*resolution;
+          markers_occupied[size].color = volume_color;
+          markers_occupied[size].lifetime = ros::Duration(0.0);
+          markers_occupied[size].frame_locked = true;
         }
 
         // Append the current voxel.
@@ -1002,26 +962,25 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
         p.x = p_eigen[0];
         p.y = p_eigen[1];
         p.z = p_eigen[2];
-        (*markers)[size].points.push_back(p);
+        markers_occupied[size].points.push_back(p);
 
+      } // end if node
+
+  } // for each node /voxel block
+
+  // finished iterating over this submap
+  // push markers to markerarray msg (one marker per size)
+  for (const auto& marker : markers_occupied) {
+        markerarraymsg_.markers.push_back(marker.second);
       }
 
-      // Publish all markers.
-      // for (const auto& marker : markers_free) {
-      //   map_free_pub_.publish(marker.second);
-      // }
-      for (const auto& marker : markers_occupied) {
-        map_occupied_pub_.publish(marker.second);
-      }
-      for (const auto& marker : markers_unknown) {
-        map_unknown_pub_.publish(marker.second);
-      }
-  }
+  } // for each submap
 
-  }
-
-  }
+  // publish all markers
+  map_occupied_pub_.publish(markerarraymsg_);
 }
+
+
 void Publisher::publishPathAsCallback(const ompl::geometric::PathGeometric & path)
 {
   
@@ -1135,35 +1094,35 @@ Eigen::Vector3d v ;
   pubMarkerOdometry_.publish(markerOdometryMsg_);
 }*/
 
-// Set and write landmarks to file.
-void Publisher::csvSaveLandmarksAsCallback(
-    const okvis::Time & /*t*/, const okvis::MapPointVector & actualLandmarks,
-    const okvis::MapPointVector & transferredLandmarks)
-{
-  okvis::MapPointVector empty;
-  setPoints(actualLandmarks, empty, transferredLandmarks);
-  if (csvLandmarksFile_) {
-    if (csvLandmarksFile_->good()) {
-      for (size_t l = 0; l < actualLandmarks.size(); ++l) {
-        Eigen::Vector4d landmark = actualLandmarks.at(l).point;
-        *csvLandmarksFile_ << std::setprecision(19) << actualLandmarks.at(l).id
-            << ", " << std::scientific << std::setprecision(18) << landmark[0]
-            << ", " << landmark[1] << ", " << landmark[2] << ", " << landmark[3]
-            << ", " << actualLandmarks.at(l).quality
-            // << ", " << actualLandmarks.at(l).distance
-            << std::endl;
-      }
-    }
-  }
-}
+// // Set and write landmarks to file.
+// void Publisher::csvSaveLandmarksAsCallback(
+//     const okvis::Time & /*t*/, const okvis::MapPointVector & actualLandmarks,
+//     const okvis::MapPointVector & transferredLandmarks)
+// {
+//   okvis::MapPointVector empty;
+//   setPoints(actualLandmarks, empty, transferredLandmarks);
+//   if (csvLandmarksFile_) {
+//     if (csvLandmarksFile_->good()) {
+//       for (size_t l = 0; l < actualLandmarks.size(); ++l) {
+//         Eigen::Vector4d landmark = actualLandmarks.at(l).point;
+//         *csvLandmarksFile_ << std::setprecision(19) << actualLandmarks.at(l).id
+//             << ", " << std::scientific << std::setprecision(18) << landmark[0]
+//             << ", " << landmark[1] << ", " << landmark[2] << ", " << landmark[3]
+//             << ", " << actualLandmarks.at(l).quality
+//             // << ", " << actualLandmarks.at(l).distance
+//             << std::endl;
+//       }
+//     }
+//   }
+// }
 
-// Publish the last set points.
-void Publisher::publishPoints()
-{
-  pubPointsMatched_.publish(pointsMatched_);
-  pubPointsUnmatched_.publish(pointsUnmatched_);
-  pubPointsTransferred_.publish(pointsTransferred_);
-}
+// // Publish the last set points.
+// void Publisher::publishPoints()
+// {
+//   pubPointsMatched_.publish(pointsMatched_);
+//   pubPointsUnmatched_.publish(pointsUnmatched_);
+//   pubPointsTransferred_.publish(pointsTransferred_);
+// }
 
 // Set the images to be published next.
 void Publisher::setImages(const std::vector<cv::Mat> & images)

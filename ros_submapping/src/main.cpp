@@ -248,7 +248,7 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
   // mesh version:
   se_interface->setSubmapMeshesCallback(std::bind(&Publisher::publishSubmapMeshesAsCallback, &publisher, std::placeholders::_1));
   // block version:
-  //se_interface->setSubmapCallback(std::bind(&Publisher::publishSubmapsAsCallback, &publisher, std::placeholders::_1,std::placeholders::_2));
+  // se_interface->setSubmapCallback(std::bind(&Publisher::publishSubmapsAsCallback, &publisher, std::placeholders::_1,std::placeholders::_2));
 
   // trigger plan() every time a new submap is created
   // se_interface->setReplanCallback(std::bind(&Planner::plan, planner));

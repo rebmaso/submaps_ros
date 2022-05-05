@@ -213,7 +213,7 @@ void SupereightInterface::processSupereightFrames() {
 
     //compute distance from last keyframe:
     bool distant_enough = false;
-    const double treshold = 4.0;
+    const double treshold = 3.0;
     auto distance = (submapPoseLookup_[supereightFrame.keyframeId].r() - submapPoseLookup_[prevKeyframeId].r()).norm();
     if (distance > treshold) distant_enough = true;
 

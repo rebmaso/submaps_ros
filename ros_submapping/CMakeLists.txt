@@ -11,7 +11,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -fPIC") # -march=native
 find_package(catkin REQUIRED COMPONENTS 
 gazebo_msgs 
 geometry_msgs 
-mav_msgs 
 roscpp 
 sensor_msgs 
 message_filters 
@@ -25,7 +24,6 @@ catkin_package(
   # CATKIN_DEPENDS
   #   gazebo_msgs
   #   geometry_msgs
-  #   mav_msgs
   #   roscpp
   #   sensor_msgs
   #   message_filters
@@ -106,7 +104,3 @@ include_directories(
 add_executable(main src/main.cpp src/SupereightInterface.cpp src/Publisher.cpp src/Planner.cpp)
 target_link_libraries(main PRIVATE 
 okvis_util okvis_kinematics okvis_time okvis_cv okvis_common okvis_ceres okvis_timing okvis_frontend okvis_multisensor_processing okvis_apps pthread ${SUPEREIGHT_LIB} ${OpenCV_LIBS} ${Boost_LIBRARIES} ${OMPL_LIBRARIES} ${catkin_LIBRARIES})
-
-add_executable(waypoint_publisher src/waypoint_publisher.cpp)
-target_link_libraries(waypoint_publisher ${catkin_LIBRARIES})
-add_dependencies(waypoint_publisher ${catkin_EXPORTED_TARGETS})

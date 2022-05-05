@@ -344,9 +344,9 @@ class Publisher
 
   ros::NodeHandle* nh_; ///< The node handle.
   tf::TransformBroadcaster pubTf_;  ///< The transform broadcaster.
-  ros::Publisher pubPointsMatched_; ///< The publisher for matched points.
-  ros::Publisher pubPointsUnmatched_; ///< The publisher for unmatched points.
-  ros::Publisher pubPointsTransferred_; ///< The publisher for transferred/marginalised points.
+  // ros::Publisher pubPointsMatched_; ///< The publisher for matched points.
+  // ros::Publisher pubPointsUnmatched_; ///< The publisher for unmatched points.
+  // ros::Publisher pubPointsTransferred_; ///< The publisher for transferred/marginalised points.
   ros::Publisher pubObometry_;  ///< The publisher for the odometry.
   ros::Publisher pubPath_;  ///< The publisher for the path.
   ros::Publisher pubTransform_; ///< The publisher for the transform.

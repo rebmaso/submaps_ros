@@ -26,8 +26,6 @@
 #include <ompl/geometric/SimpleSetup.h>
 
 #include <Eigen/Core>
-#include <mav_msgs/conversions.h>
-#include <mav_msgs/default_topics.h>
 #include <ros/ros.h>
 #include <std_srvs/Empty.h>
 #include <trajectory_msgs/MultiDOFJointTrajectory.h>

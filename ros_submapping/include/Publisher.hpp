@@ -201,7 +201,12 @@ class Publisher
   /**
    * @brief set T_SC to visualize camera frustum for keyframes
   */
-  void setT_SC(const Eigen::Matrix4d & T_SC) {T_SC_ = T_SC;}
+  void setT_SC(const Eigen::Matrix4d & T_SC) {
+    T_SC_ = T_SC;
+    Eigen::Matrix3d R_SC = T_SC_.block<3,3>(0,0);
+    Eigen::Matrix3d R;
+    R << 0, -1, 0, 0, 0, -1, 1, 0, 0;
+    q_sc_ = Eigen::Quaterniond(R_SC * R);}
 
   /// \}
   /// \name Publish
@@ -419,6 +424,7 @@ class Publisher
   std::shared_ptr<std::fstream> csvLandmarksFile_;  ///< CSV file to save landmarks in.
 
   Eigen::Matrix4d T_SC_; // Tf from Sensor to Camera
+  Eigen::Quaterniond q_sc_;
 
 };
 

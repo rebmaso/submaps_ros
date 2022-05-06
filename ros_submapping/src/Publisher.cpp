@@ -255,10 +255,10 @@ void Publisher::setPose(const okvis::kinematics::Transformation& T_WS)
     meshMsg_.header.stamp = ros::Time::now();
 
   // fill orientation
-  meshMsg_.pose.orientation.x = 0;
-  meshMsg_.pose.orientation.y = 0;
-  meshMsg_.pose.orientation.z = 0;
-  meshMsg_.pose.orientation.w = 1;
+  meshMsg_.pose.orientation.x = q_sc_.x();
+  meshMsg_.pose.orientation.y = q_sc_.y();
+  meshMsg_.pose.orientation.z = q_sc_.z();
+  meshMsg_.pose.orientation.w = q_sc_.w();
 
   // fill position
   meshMsg_.pose.position.x = 0;

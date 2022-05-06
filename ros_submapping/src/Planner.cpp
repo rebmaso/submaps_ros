@@ -15,13 +15,13 @@ Planner::Planner(SupereightInterface* se_interface_) {
 
   // important: define here the box inside which you intend to plan
   
-  // uHumans
-  bounds.setLow(0,-1);
-  bounds.setHigh(0,25);
-  bounds.setLow(1,-5);
-  bounds.setHigh(1,4);
-  bounds.setLow(2,-4);
-  bounds.setHigh(2,4);
+  // // uHumans
+  // bounds.setLow(0,-1);
+  // bounds.setHigh(0,25);
+  // bounds.setLow(1,-5);
+  // bounds.setHigh(1,4);
+  // bounds.setLow(2,-4);
+  // bounds.setHigh(2,4);
 
   // // gazebo garching
   // bounds.setLow(0,-3);
@@ -30,6 +30,14 @@ Planner::Planner(SupereightInterface* se_interface_) {
   // bounds.setHigh(1,6);
   // bounds.setLow(2,-1);
   // bounds.setHigh(2,5);
+
+  // main_hall 
+  bounds.setLow(0,-5);
+  bounds.setHigh(0,40);
+  bounds.setLow(1,-5);
+  bounds.setHigh(1,50);
+  bounds.setLow(2,-2);
+  bounds.setHigh(2,10);
 
   // set the bounds you just chose
   space->as<ob::RealVectorStateSpace>()->setBounds(bounds);

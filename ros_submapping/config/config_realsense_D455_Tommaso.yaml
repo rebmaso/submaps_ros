@@ -1,4 +1,8 @@
 %YAML:1.0
+
+
+%YAML:1.0
+
 cameras:
      - {T_SC:
         [1.0, 0.0, 0.0, -0.0302200001,
@@ -8,11 +12,9 @@ cameras:
         image_dimension: [640, 480],
         distortion_coefficients: [0.0, 0.0, 0.0, 0.0],
         distortion_type: radialtangential,
-        #focal_length: [390.598938, 390.598938],
-        focal_length: [385.070495605469, 385.070495605469],
-        #principal_point: [320.581665, 237.712845]}
-        principal_point: [320.581665, 237.712845]}
-
+        focal_length: [390.598938, 390.598938],
+        principal_point: [320.581665, 237.712845]
+        }
      - {T_SC:
         [1.0, 0.0, 0.0,  0.0646901205,
          0.0, 1.0, 0.0,  0.0074000000,
@@ -21,10 +23,9 @@ cameras:
         image_dimension: [640, 480],
         distortion_coefficients: [0.0, 0.0, 0.0, 0.0],
         distortion_type: radialtangential,
-        #focal_length: [390.598938, 390.598938],
-        focal_length: [385.070495605469, 385.070495605469],
-        #principal_point: [320.581665, 237.712845]}
-        principal_point: [318.642700195312, 239.911026000977]}
+        focal_length: [390.598938, 390.598938],
+        principal_point: [320.581665, 237.712845]
+        }
 
 # additional camera parameters
 camera_parameters:
@@ -38,8 +39,8 @@ camera_parameters:
 # the IMU sensor model
 imu_parameters:
     used: true # enable IMU
-    a_max: 10000.0 # acceleration saturation [m/s^2]
-    g_max: 10000.0 # gyro saturation [rad/s]
+    a_max: 160.0 # acceleration saturation [m/s^2]
+    g_max: 10.0 # gyro saturation [rad/s]
     sigma_g_c: 0.00278 # gyro noise density [rad/s/sqrt(Hz)]
     sigma_bg: 0.03 # gyro bias prior [rad/s]
     sigma_a_c: 0.0252 # accelerometer noise density [m/s^2/sqrt(Hz)]
@@ -54,7 +55,7 @@ imu_parameters:
           0.0, 1.0, 0.0, 0.0,
           0.0, 0.0, 1.0, 0.0,
           0.0, 0.0, 0.0, 1.0 ]
-
+          
 # frontend: detection etc. 
 frontend_parameters:
     use_cnn: false
@@ -86,3 +87,4 @@ output_parameters:
     display_matches: false  # displays debug video and matches. May be slow.
     display_overhead: false # debug overhead image. Is slow.
     publish_imu_propagated_state: false # Should the state that is propagated with IMU messages be published or just the optimised ones?
+

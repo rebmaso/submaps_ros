@@ -1,7 +1,7 @@
 %YAML:1.2
 
 map:
-  dim:                        [10.24, 10.24, 10.24]
+  dim:                        [20.0, 20.0, 20.0] #[10.24, 10.24, 10.24]
   res:                        0.2
 
 data:
@@ -34,6 +34,6 @@ sensor:
   cx:                         360.000000
   cy:                         240.000000
   left_hand_frame:            false
-  near_plane:                 0.0
-  far_plane:                  2.0
+  near_plane:                 0.4
+  far_plane:                  4.0
 

@@ -36,8 +36,8 @@ struct OkvisUpdate {
   State latestState;
   StateVector keyframeStates;
   okvis::Time timestamp;
-  uint64_t currentKeyframe;
   bool isKeyframe;
+  uint64_t currentKeyframe;
   bool loop_closure;
   OkvisUpdate(const State &latestState = State(),
               const StateVector &keyframeStates = StateVector(),
@@ -117,7 +117,7 @@ public:
       : T_SC_(T_SC), T_CS_(T_SC.inverse()), sensor_(cameraConfig), mapConfig_(mapConfig),
         dataConfig_(dataConfig), meshesPath_(meshesPath) {
     
-    se::OccupancyMap<se::Res::Multi> map(mapConfig_, dataConfig_);
+    //se::OccupancyMap<se::Res::Multi> map(mapConfig_, dataConfig_);
     no_kf_yet = true;
     latestKeyframeId = 1;
   };
@@ -310,10 +310,10 @@ private:
       T_SC_; ///< Transformation of the depth camera frame wrt IMU sensor frame
   const Transformation
       T_CS_; ///< 
-  const std::string meshesPath_;  ///< Path to save the meshes
   se::PinholeCamera sensor_;      ///< Depth sensor used in supereight
   se::MapConfig mapConfig_;       ///< Supereight Map config
   se::OccupancyDataConfig dataConfig_; ///< Supereight Data config
+  std::string meshesPath_;  ///< Path to save the meshes
   DepthFrameQueue
       depthMeasurements_; ///< Queue with the buffered Depth measurements
   StateUpdatesQueue

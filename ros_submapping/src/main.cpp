@@ -145,14 +145,14 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
   viParametersReader.getParameters(parameters);
    
   // store output stuff (est trajectory, meshes computed by s8, dbow vocab)
-  // everything should be in a folder named in_out in your ws
+  // everything should be in a folder named utils in your ws
   boost::filesystem::path package(package_dir);
   package.remove_filename().remove_filename(); // now path is your workspace
 
-  std::string trajectoryDir = package.string() + "/in_out";
-  std::string meshesDir = package.string() + "/in_out" + "/meshes";
+  std::string trajectoryDir = package.string() + "/utils";
+  std::string meshesDir = package.string() + "/utils" + "/meshes";
   publisher.setMeshesPath(meshesDir); // tell publisher where submap meshes are
-  std::string dBowVocDir = package.string() + "/in_out";
+  std::string dBowVocDir = package.string() + "/utils";
 
 
   // =============== DELETE OLD MESHES ===============
@@ -207,7 +207,9 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
   // Get all the supereight related settings from a file
   const se::MapConfig mapConfig(config_s8);
   const se::OccupancyDataConfig dataConfig(config_s8);
-  const se::PinholeCameraConfig cameraConfig(config_s8);
+  //const se::PinholeCameraConfig cameraConfig(config_s8);
+  se::PinholeCameraConfig cameraConfig;
+  cameraConfig.readYaml(config_s8);
 
   // depth cam extrinsics. in the visensor, the depth camera frame is the same as the left camera
   const Eigen::Matrix4d T_SC = parameters.nCameraSystem.T_SC(0)->T();

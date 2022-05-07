@@ -19,7 +19,7 @@
   </group>
   
   <group if="$(arg rviz)">
-    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find rviz_submapping)/rviz/config_1.rviz" output="screen" launch-prefix="xterm -e"/>
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find rviz_submapping)/rviz/config_1.rviz" output="screen" /> launch-prefix="xterm -e"/>
   </group>
 
   <!-- all okvis output is published wrt odom frame-->

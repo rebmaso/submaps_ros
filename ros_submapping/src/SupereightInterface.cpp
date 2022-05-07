@@ -213,7 +213,7 @@ void SupereightInterface::processSupereightFrames() {
 
     //compute distance from last keyframe:
     bool distant_enough = false;
-    const double treshold = 3.0;
+    const double treshold = 4.0;
     auto distance = (submapPoseLookup_[supereightFrame.keyframeId].r() - submapPoseLookup_[prevKeyframeId].r()).norm();
     if (distance > treshold) distant_enough = true;
 
@@ -273,6 +273,14 @@ void SupereightInterface::processSupereightFrames() {
 
       se::MapIntegrator integrator(
           *activeMap); //< ToDo -> Check how fast this constructor is
+
+      // auto depthFrame_pose = submapPoseLookup_[prevKeyframeId].T().inverse().cast<float>() * supereightFrame.T_WC.T().cast<float>();
+      
+      // if (depthFrame_pose(0,0) < 0 || depthFrame_pose(1,1) < 0 || depthFrame_pose(2,2) < 0)
+      // {
+      //   std::cout << depthFrame_pose.block<3,3>(0,0) << "\n \n \n";
+      // }
+      
       integrator.integrateDepth(sensor_, supereightFrame.depthFrame,
                                 (submapPoseLookup_[prevKeyframeId].inverse() * supereightFrame.T_WC).T().cast<float>(), frame);
       frame++;      
@@ -322,7 +330,7 @@ void SupereightInterface::pushSuperEightData() {
     // Push to the Supereight Queue.
     const size_t supereightQueueSize = 5000; ///< ToDo -> Benchmark supereight.
     if (blocking_) {
-      const bool result = supereightFrames_.PushBlockingIfFull(
+      supereightFrames_.PushBlockingIfFull(
           supereightFrame, supereightQueueSize);
       cvNewSupereightData_.notify_one();
     } else {
@@ -495,8 +503,8 @@ void SupereightInterface::redoSpatialHashing(const uint64_t id, const Transforma
 void SupereightInterface::doPrelimSpatialHashing(const uint64_t id, const Eigen::Vector3d pos_kf)
 {
 
-  const uint64_t side = 1; // step (in metre)s of the spatial grid
-  const uint64_t box_side = 10; // dim of the box we'll allocate
+  const int side = 1; // step (in metre)s of the spatial grid
+  const int box_side = 10; // dim of the box we'll allocate
   
   // box dims, in metres
   Eigen::Vector3i min_box_metres = Eigen::Vector3i::Constant(-box_side);
@@ -581,10 +589,6 @@ void SupereightInterface::doSpatialHashing(const uint64_t id, const Transformati
         }
         // if octant is completely inside --> skip octant
         if(inside_bounds) continue;
-
-
-        int node_size;
-        int node_scale;
         
         // Differentiate between block and node processing
         if (octant_ptr->isBlock()) {
@@ -596,9 +600,9 @@ void SupereightInterface::doSpatialHashing(const uint64_t id, const Transformati
             const int node_size  = 1 << node_scale;
 
             // iterate through voxels inside block
-            for (int x = 0; x < BlockType::getSize(); x += node_size) {
-                for (int y = 0; y < BlockType::getSize(); y += node_size) {
-                    for (int z = 0; z < BlockType::getSize(); z += node_size) {
+            for (unsigned int x = 0; x < BlockType::getSize(); x += node_size) {
+                for (unsigned int y = 0; y < BlockType::getSize(); y += node_size) {
+                    for (unsigned int z = 0; z < BlockType::getSize(); z += node_size) {
 
                       
                       // if the voxel is unobserved, skip
@@ -639,7 +643,7 @@ void SupereightInterface::doSpatialHashing(const uint64_t id, const Transformati
           const auto data = static_cast<typename OctreeT::NodeType*>(octant_ptr)->getData();
           if (data.weight == 0) continue;
 
-          node_size = static_cast<typename OctreeT::NodeType*>(octant_ptr)->getSize();
+          const int node_size = static_cast<typename OctreeT::NodeType*>(octant_ptr)->getSize();
 
           const Eigen::Vector3i node_coord = octant_ptr->getCoord();
           

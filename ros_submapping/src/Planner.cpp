@@ -31,13 +31,21 @@ Planner::Planner(SupereightInterface* se_interface_) {
   // bounds.setLow(2,-1);
   // bounds.setHigh(2,5);
 
-  // main_hall 
-  bounds.setLow(0,-5);
-  bounds.setHigh(0,40);
-  bounds.setLow(1,-5);
-  bounds.setHigh(1,50);
-  bounds.setLow(2,-2);
-  bounds.setHigh(2,10);
+  // // main_hall 
+  // bounds.setLow(0,-5);
+  // bounds.setHigh(0,40);
+  // bounds.setLow(1,-5);
+  // bounds.setHigh(1,50);
+  // bounds.setLow(2,-2);
+  // bounds.setHigh(2,10);
+
+  // stairs
+  bounds.setLow(0,-10);
+  bounds.setHigh(0,10);
+  bounds.setLow(1,-10);
+  bounds.setHigh(1,25);
+  bounds.setLow(2,-10);
+  bounds.setHigh(2,5);
 
   // set the bounds you just chose
   space->as<ob::RealVectorStateSpace>()->setBounds(bounds);
@@ -89,8 +97,9 @@ Planner::Planner(SupereightInterface* se_interface_) {
   ss->setOptimizationObjective(obj);
   
   // set planner
-  rrt = std::make_shared<og::InformedRRTstar>(ss->getSpaceInformation());
-  rrt->setRange(0.2);
+  //rrt = std::make_shared<og::InformedRRTstar>(ss->getSpaceInformation());
+  rrt = std::make_shared<og::RRTConnect>(ss->getSpaceInformation());
+  rrt->setRange(0.4);
 
   ss->setPlanner(rrt);
   
@@ -173,7 +182,7 @@ bool Planner::plan()
   // load current start & goal
   ss->setStartAndGoalStates(start_ompl, goal_ompl);
 
-  ob::PlannerStatus solved = ss->solve(2.0);
+  ob::PlannerStatus solved = ss->solve(10.0);
 
   if (solved) {
 
@@ -243,7 +252,7 @@ bool Planner::detectCollision(const ompl::base::State *state)
   // check occ inside a sphere around the drone 
   // very sparse 
   // lowest res is 1 voxel = 0.2m
-  const float rad = 0.2; // radius of the sphere
+  const float rad = 0.3; // radius of the sphere
 
   for (float z = -rad; z <= rad; z += rad/2)
   {

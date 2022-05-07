@@ -70,7 +70,7 @@ find_package(Eigen REQUIRED)
 include_directories(${EIGEN_INCLUDE_DIR})
 
 # alias for Supereight 2
-set(SUPEREIGHT_LIB "supereight")
+set(SUPEREIGHT_LIB "supereight2")
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 

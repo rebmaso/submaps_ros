@@ -23,6 +23,7 @@
 #include <ompl/base/objectives/PathLengthOptimizationObjective.h>
 // #include <ompl/geometric/planners/rrt/RRTstar.h>
 #include <ompl/geometric/planners/rrt/InformedRRTstar.h>
+#include <ompl/geometric/planners/rrt/RRTConnect.h>
 #include <ompl/geometric/SimpleSetup.h>
 
 #include <Eigen/Core>
@@ -54,7 +55,8 @@ private:
 
   og::SimpleSetupPtr ss;
 
-  std::shared_ptr<og::InformedRRTstar> rrt;
+  //std::shared_ptr<og::InformedRRTstar> rrt;
+  std::shared_ptr<og::RRTConnect> rrt;
 
   std::shared_ptr<og::PathGeometric> path;
 

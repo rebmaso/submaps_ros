@@ -10,6 +10,9 @@ bool SupereightInterface::addDepthImage(const okvis::Time &stamp,
   depthMeasurement.measurement.deliversKeypoints = false;
   depthMeasurement.timeStamp = stamp;
 
+  // cv::imshow("mydepth",depthMeasurement.measurement.depthImage);
+  // cv::waitKey(2);
+
   // Push data to the Queue.
   const size_t depthQueueSize =
       1000; ///< Arbitrary number. ToDo -> fine-tune once integration time has
@@ -48,26 +51,16 @@ bool SupereightInterface::dataReadyForProcessing() {
 
 DepthFrame SupereightInterface::depthMat2Image(const cv::Mat &inputDepth) {
   
-  // Scale the input depth based on TUM convension
-  // needed this bc dataset is 1 mt --> 5000. With the simulated depth cam we should already have 1mt -> 1
-  cv::Mat depthScaled;
+  // need to have float values like this 1.0 = 1 mt
+  // if this is not the case, do this:
   //inputDepth.convertTo(depthScaled, CV_32FC1, 1.f / 1000.f);
-  inputDepth.convertTo(depthScaled, CV_32FC1);
 
   // Initialise and copy
-  DepthFrame output(depthScaled.size().width, depthScaled.size().height, 0.f);
+  DepthFrame output(inputDepth.size().width, inputDepth.size().height, 0.f);
 
   // cv::MAT and DepthFrame keep data stored in row major format.
-  memcpy(output.data(), depthScaled.data,
-         depthScaled.size().width * depthScaled.size().height * sizeof(float));
-
-
-  // cv::Mat test;
-  // inputDepth.convertTo(test, CV_32FC1, 1.f / 5000.f);
-  // memcpy(test.data, output.data(),
-  //        test.size().width * test.size().height * sizeof(float));
-  // cv::imshow("test", test);
-  // cv::imshow("depthScaled", depthScaled);
+  memcpy(output.data(), inputDepth.data,
+         inputDepth.size().width * inputDepth.size().height * sizeof(float));
 
   return output;
 }
@@ -226,7 +219,7 @@ void SupereightInterface::processSupereightFrames() {
         (*(submapLookup_[prevKeyframeId]))->saveMesh(meshFilename);
                 
         // call submap visualizer (it's threaded)
-        publishSubmaps();
+        // publishSubmaps();
       }
 
       // create new map
@@ -272,11 +265,21 @@ void SupereightInterface::processSupereightFrames() {
       //   std::cout << depthFrame_pose.block<3,3>(0,0) << "\n \n \n";
       // }
 
+      // std::cout << submapPoseLookup_[prevKeyframeId].T().inverse() << "\n\n";
+
       Eigen::Matrix4f T_KC = (submapPoseLookup_[prevKeyframeId].T().inverse() * supereightFrame.T_WC.T()).cast<float>();
+
+      // //Display
+      // cv::imshow("seframe", depthImage2Mat(supereightFrame.depthFrame));
+      // cv::waitKey(2);
       
       integrator.integrateDepth(sensor_, supereightFrame.depthFrame,
                                 T_KC, frame);
       frame++;
+
+      static unsigned int buttami = 0;
+      buttami ++;
+      if(!(buttami % 1)) publishSubmaps();
 
       // const auto current_time = std::chrono::high_resolution_clock::now();
       // // Some couts, remove when done debugging.
@@ -304,6 +307,9 @@ void SupereightInterface::pushSuperEightData() {
     CameraMeasurement depthMeasurement;
     if (!depthMeasurements_.PopNonBlocking(&depthMeasurement))
       continue;
+
+    // cv::imshow("Depth", depthMeasurement.measurement.depthImage);
+    // cv::waitKey(2);
 
     // Compute the respective pose using the okvis updates and the IMU
     // measurements.
@@ -359,12 +365,13 @@ void SupereightInterface::display() {
   // // Display the Depth frame.
   // CameraMeasurement depthMeasurement;
   // if (depthMeasurements_.getCopyOfFront(&depthMeasurement)) {
-  //   cv::imshow("Depth frames", depthMeasurement.measurement.depthImage);
+  //   cv::imshow("Depth", depthMeasurement.measurement.depthImage);
   // }
 
   // //Display from the seframes queue
+  // SupereightFrame SupereightFrame_;
   // if (supereightFrames_.getCopyOfFront(&SupereightFrame_)) {
-  //   cv::imshow("Depth from Seframes", depthImage2Mat(SupereightFrame_.depthFrame));
+  //   cv::imshow("seframe", depthImage2Mat(SupereightFrame_.depthFrame));
   // }
 }
 

@@ -863,7 +863,7 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
                   const Eigen::Vector3f node_centre_meter = (node_coord.template cast<float>() + Eigen::Vector3f::Constant((float) node_size / 2)) * (*it.second)->getRes();
                   const auto data = block_ptr->getData(node_coord);
 
-                  if (data.occupancy * data.weight < -20 || data.weight == 0) { // FREE / UNOBSERVED VOXELS (this hides unobserved vox, but the planner still treats them as occupied)
+                  if (data.occupancy * data.weight <= 0) { // FREE / UNOBSERVED VOXELS (this hides unobserved vox, but the planner still treats them as occupied)
                       continue;
                   }
 
@@ -916,7 +916,7 @@ void Publisher::publishSubmapsAsCallback(std::unordered_map<uint64_t, Transforma
 
         const auto data = static_cast<typename OctreeT::NodeType*>(octant_ptr)->getMaxData();
         // Again decide which nodes to ignore
-        if (data.occupancy * data.weight <= -20 || data.weight == 0) {
+        if (data.occupancy * data.weight <= 0) {
             continue;
         }
 

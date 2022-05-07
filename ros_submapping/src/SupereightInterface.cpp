@@ -122,7 +122,7 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
     latestKeyframeId = keyframeId;
   }
   else { 
-    get_last_kf = true; // get latest kf from keyframedatavec (check if they are ordered)
+    get_last_kf = true; // get latest kf from keyframedatavec (not always ordered. need to check)
     keyframeId = latestKeyframeId;
   }
 
@@ -141,7 +141,7 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
   loop_closure = initialStateData.loop_closure;
 
   State propagatedState;
-  if(!propagatedStates.getState(finalTimestamp, propagatedState)) throw std::runtime_error("AAAAAAA"); // check that this dont happn. then just return false
+  if(!propagatedStates.getState(finalTimestamp, propagatedState)) throw std::runtime_error("predict"); // check that this dont happn. then just return false
 
   // Predicted Pose
   T_WC = propagatedState.T_WS * T_SC_;
@@ -280,10 +280,13 @@ void SupereightInterface::processSupereightFrames() {
       // {
       //   std::cout << depthFrame_pose.block<3,3>(0,0) << "\n \n \n";
       // }
+
+      // inverse of from world to keyframe (camera frame)
+      auto T_WKc = (T_CS_ * submapPoseLookup_[prevKeyframeId].inverse()).T();
       
       integrator.integrateDepth(sensor_, supereightFrame.depthFrame,
-                                (submapPoseLookup_[prevKeyframeId].inverse() * supereightFrame.T_WC).T().cast<float>(), frame);
-      frame++;      
+                                (T_WKc * supereightFrame.T_WC.T()).cast<float>(), frame);
+      frame++;
 
       // const auto current_time = std::chrono::high_resolution_clock::now();
       // // Some couts, remove when done debugging.

@@ -71,19 +71,17 @@ typedef std::vector<KeyframeData, Eigen::aligned_allocator<KeyframeData>>
  */
 struct SupereightFrame {
   Transformation T_WC; // camera pose
-  Transformation T_WC0; // camera keyframe pose
   DepthFrame depthFrame;
   uint64_t keyframeId; // id of current kf
   KeyFrameDataVec keyFrameDataVec;
   bool loop_closure;
 
   SupereightFrame(const Transformation &T_WC = Transformation::Identity(),
-                  const Transformation &T_WC0 = Transformation::Identity(),
                   const DepthFrame &depthFrame = DepthFrame(640, 480, 0.f),
                   const uint64_t &keyframeId = 0,
                   const KeyFrameDataVec &keyFrameDataVec = KeyFrameDataVec{},
                   const bool &loop_closure = false)
-      : T_WC(T_WC), T_WC0(T_WC0), depthFrame(depthFrame), keyframeId(keyframeId),
+      : T_WC(T_WC), depthFrame(depthFrame), keyframeId(keyframeId),
         keyFrameDataVec(keyFrameDataVec), loop_closure(loop_closure){};
 };
 
@@ -229,7 +227,7 @@ struct SpatialHasher {
 
 // To access maps
 std::unordered_map<uint64_t, SubmapList::iterator> submapLookup_; // use this to access submaps (index,submap)
-std::unordered_map<uint64_t, Transformation> submapPoseLookup_; // use this to access submap poses (index,pose)
+std::unordered_map<uint64_t, Transformation> submapPoseLookup_; // use this to access submap poses (index,pose in camera frame)
 std::unordered_map<uint64_t, Eigen::Matrix<float,6,1>> submapDimensionLookup_; // use this when reindexing maps on loop closures (index,dims)
 // spatial hash maps: sidexsidexside boxes 
 std::unordered_map<Eigen::Vector3i, std::unordered_set<int>, SpatialHasher> hashTable_; // a hash table for quick submap access (box coord, list of indexes)
@@ -263,7 +261,7 @@ private:
    */
   static cv::Mat depthImage2Mat(const DepthFrame &depthFrame);
 
-  bool predict(const okvis::Time &finalTimestamp, Transformation &T_WC0,
+  bool predict(const okvis::Time &finalTimestamp,
                Transformation &T_WC, uint64_t &keyframeId,
                KeyFrameDataVec &keyFrameDataVec,
                bool &loop_closure);

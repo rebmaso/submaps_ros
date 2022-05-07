@@ -87,7 +87,7 @@ cv::Mat SupereightInterface::depthImage2Mat(const DepthFrame &depthFrame) {
 }
 
 bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
-                                  Transformation &T_WC0, Transformation &T_WC,
+                                  Transformation &T_WC,
                                   uint64_t &keyframeId,
                                   KeyFrameDataVec &keyFrameDataVec,
                                   bool &loop_closure) {
@@ -112,17 +112,12 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
   // this
   if (initialStateData.keyframeStates.empty()) return false;
 
-  Transformation T_WS0;
-
-  bool get_last_kf = false;
   if (initialStateData.isKeyframe || no_kf_yet) { // first update should always be keyframe
     no_kf_yet = false;
-    T_WS0 = initialStateData.latestState.T_WS;
     keyframeId = initialStateData.latestState.id.value();
     latestKeyframeId = keyframeId;
   }
   else { 
-    get_last_kf = true; // get latest kf from keyframedatavec (not always ordered. need to check)
     keyframeId = latestKeyframeId;
   }
 
@@ -130,12 +125,8 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
   keyFrameDataVec = KeyFrameDataVec(initialStateData.keyframeStates.size());
   for (size_t i = 0; i < initialStateData.keyframeStates.size(); i++) {
     const auto &state = initialStateData.keyframeStates[i];
-    // std::cout << " " << state.id.value() << "\n";
-    if(get_last_kf && (state.id.value() == latestKeyframeId)) T_WS0 = state.T_WS;
     keyFrameDataVec.at(i) = KeyframeData(state.id.value(), state.T_WS * T_SC_);
   }
-
-  T_WC0 = T_WS0 * T_SC_;
 
   // Is current state a loop closure state?
   loop_closure = initialStateData.loop_closure;
@@ -176,8 +167,8 @@ void SupereightInterface::processSupereightFrames() {
     for (auto &keyframeData : supereightFrame.keyFrameDataVec) {
 
     
-      const auto id = keyframeData.id;
-      const auto T_WM = keyframeData.T_WM;
+      const uint64_t id = keyframeData.id;
+      const Transformation T_WM = keyframeData.T_WM;
 
       // std::cout << " " << id << "\n";
       
@@ -214,7 +205,7 @@ void SupereightInterface::processSupereightFrames() {
     //compute distance from last keyframe:
     bool distant_enough = false;
     const double treshold = 4.0;
-    auto distance = (submapPoseLookup_[supereightFrame.keyframeId].r() - submapPoseLookup_[prevKeyframeId].r()).norm();
+    const double distance = (submapPoseLookup_[supereightFrame.keyframeId].r() - submapPoseLookup_[prevKeyframeId].r()).norm();
     if (distance > treshold) distant_enough = true;
 
     // current kf has changed, and it is distant enough from last one
@@ -281,11 +272,10 @@ void SupereightInterface::processSupereightFrames() {
       //   std::cout << depthFrame_pose.block<3,3>(0,0) << "\n \n \n";
       // }
 
-      // inverse of from world to keyframe (camera frame)
-      auto T_WKc = (T_CS_ * submapPoseLookup_[prevKeyframeId].inverse()).T();
+      Eigen::Matrix4f T_KC = (submapPoseLookup_[prevKeyframeId].T().inverse() * supereightFrame.T_WC.T()).cast<float>();
       
       integrator.integrateDepth(sensor_, supereightFrame.depthFrame,
-                                (T_WKc * supereightFrame.T_WC.T()).cast<float>(), frame);
+                                T_KC, frame);
       frame++;
 
       // const auto current_time = std::chrono::high_resolution_clock::now();
@@ -317,16 +307,16 @@ void SupereightInterface::pushSuperEightData() {
 
     // Compute the respective pose using the okvis updates and the IMU
     // measurements.
-    Transformation T_WC0, T_WC;
+    Transformation T_WC;
     uint64_t lastKeyframeId;
     KeyFrameDataVec keyFrameDataVec;
     bool loop_closure;
-    if (!predict(depthMeasurement.timeStamp, T_WC0, T_WC, lastKeyframeId,
+    if (!predict(depthMeasurement.timeStamp, T_WC, lastKeyframeId,
                  keyFrameDataVec, loop_closure)) continue;
 
     // Construct Supereight Frame and push to the corresponding Queue
     const SupereightFrame supereightFrame(
-        T_WC, T_WC0,
+        T_WC,
         depthMat2Image(depthMeasurement.measurement.depthImage), lastKeyframeId,
         keyFrameDataVec, loop_closure);
 
@@ -441,9 +431,9 @@ void SupereightInterface::redoSpatialHashing(const uint64_t id, const Transforma
 
   std::unique_lock<std::mutex> lk(hashTableMutex_);
 
-  auto T_KM = (*(map))->getTWM();
-  auto T_WK = Tf.T();
-  auto T_WM = T_WK.cast<float>() * T_KM;
+  Eigen::Matrix4f T_KM = (*(map))->getTWM();
+  Eigen::Matrix4d T_WK = Tf.T();
+  Eigen::Matrix4f T_WM = T_WK.cast<float>() * T_KM;
 
   // sanity checks
   if (!submapDimensionLookup_.count(id) || !hashTableInverse_.count(id))
@@ -570,9 +560,9 @@ void SupereightInterface::doSpatialHashing(const uint64_t id, const Transformati
   auto octree_ptr = (*map)->getOctree();
 
   auto resolution = (*map)->getRes();
-  auto T_KM = (*map)->getTWM();
-  auto T_WK = Tf.T();
-  auto T_WM = T_WK.cast<float>() * T_KM;
+  Eigen::Matrix4f T_KM = (*map)->getTWM();
+  Eigen::Matrix4d T_WK = Tf.T();
+  Eigen::Matrix4f T_WM = T_WK.cast<float>() * T_KM;
 
   for (auto octant_it = se::LeavesIterator<OctreeT>(octree_ptr.get()); octant_it != se::LeavesIterator<OctreeT>(); ++octant_it) {
         const auto octant_ptr = *octant_it;

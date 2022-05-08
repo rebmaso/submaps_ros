@@ -15,7 +15,7 @@ bool SupereightInterface::addDepthImage(const okvis::Time &stamp,
 
   // Push data to the Queue.
   const size_t depthQueueSize =
-      1000; ///< Arbitrary number. ToDo -> fine-tune once integration time has
+      100; ///< Arbitrary number. ToDo -> fine-tune once integration time has
             ///< been taken into account.
   if (blocking_) {
     const bool result =
@@ -269,9 +269,9 @@ void SupereightInterface::processSupereightFrames() {
 
       Eigen::Matrix4f T_KC = (submapPoseLookup_[prevKeyframeId].T().inverse() * supereightFrame.T_WC.T()).cast<float>();
 
-      // //Display
-      // cv::imshow("seframe", depthImage2Mat(supereightFrame.depthFrame));
-      // cv::waitKey(2);
+      //Display
+      cv::imshow("seframe", depthImage2Mat(supereightFrame.depthFrame));
+      cv::waitKey(2);
       
       integrator.integrateDepth(sensor_, supereightFrame.depthFrame,
                                 T_KC, frame);
@@ -327,7 +327,7 @@ void SupereightInterface::pushSuperEightData() {
         keyFrameDataVec, loop_closure);
 
     // Push to the Supereight Queue.
-    const size_t supereightQueueSize = 5000; ///< ToDo -> Benchmark supereight.
+    const size_t supereightQueueSize = 500; ///< ToDo -> Benchmark supereight.
     if (blocking_) {
       supereightFrames_.PushBlockingIfFull(
           supereightFrame, supereightQueueSize);

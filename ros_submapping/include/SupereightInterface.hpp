@@ -118,6 +118,7 @@ public:
     //se::OccupancyMap<se::Res::Multi> map(mapConfig_, dataConfig_);
     no_kf_yet = true;
     latestKeyframeId = 1;
+    blocking_ = true;
   };
 
   /**
@@ -341,7 +342,7 @@ private:
   submapMeshesCallback submapMeshesCallback_; // to visualize in Publisher
   submapCallback submapCallback_; // to visualize in Publisher
 
-  bool blocking_ = false;
+  bool blocking_;
 
   // We use this to store the active keyframe in predict(), to prepare the supereightframe
   uint64_t latestKeyframeId;

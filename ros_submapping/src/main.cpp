@@ -220,7 +220,7 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
   se_interface = std::make_shared<SupereightInterface>(cameraConfig, mapConfig, dataConfig, T_SC, meshesDir);
   
   // run in real time or not?
-  se_interface->setBlocking(true);
+  se_interface->setBlocking(false);
 
   // =============== PLANNER ===============
 

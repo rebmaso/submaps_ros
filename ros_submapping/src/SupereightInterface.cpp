@@ -63,6 +63,7 @@ DepthFrame SupereightInterface::depthMat2Image(const cv::Mat &inputDepth) {
          inputDepth.size().width * inputDepth.size().height * sizeof(float));
 
   return output;
+
 }
 
 cv::Mat SupereightInterface::depthImage2Mat(const DepthFrame &depthFrame) {
@@ -334,17 +335,17 @@ bool SupereightInterface::start() {
 
 void SupereightInterface::display() {
 
-  // // Display the Depth frame.
-  // CameraMeasurement depthMeasurement;
-  // if (depthMeasurements_.getCopyOfFront(&depthMeasurement)) {
-  //   cv::imshow("Depth", depthMeasurement.measurement.depthImage);
-  // }
+  // Display the Depth frame.
+  CameraMeasurement depthMeasurement;
+  if (depthMeasurements_.getCopyOfFront(&depthMeasurement)) {
+    cv::imshow("Depth", depthMeasurement.measurement.depthImage);
+  }
 
-  // //Display from the seframes queue
-  // SupereightFrame SupereightFrame_;
-  // if (supereightFrames_.getCopyOfFront(&SupereightFrame_)) {
-  //   cv::imshow("seframe", depthImage2Mat(SupereightFrame_.depthFrame));
-  // }
+  //Display from the seframes queue
+  SupereightFrame SupereightFrame_;
+  if (supereightFrames_.getCopyOfFront(&SupereightFrame_)) {
+    cv::imshow("seframe", depthImage2Mat(SupereightFrame_.depthFrame));
+  }
 }
 
 bool SupereightInterface::stateUpdateCallback(

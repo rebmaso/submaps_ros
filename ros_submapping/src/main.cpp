@@ -376,15 +376,25 @@ void RosInterfacer::imgsCallback(const sensor_msgs::ImageConstPtr& img_0, const 
 
 void RosInterfacer::depthCallback(const sensor_msgs::ImageConstPtr& img){
 
-  cv::Mat raw_depth(img->height, img->width, CV_32FC1, const_cast<uint8_t*>(&img->data[0]), img->step);
+  // DO NOT USE THIS!!! SOMETHINGS MESSED UP 
+  // ONLY USE CVBRIDGE
+
+  // cv::Mat raw_depth(img->height, img->width, CV_32FC1, const_cast<uint8_t*>(&img->data[0]), img->step);
+  // okvis::Time t(img->header.stamp.sec, img->header.stamp.nsec);
+  // t -= okvis::Duration(parameters.camera.image_delay);
+
+  // if (!se_interface->addDepthImage(t, raw_depth)) 
+  //   LOG(WARNING) << "Depth frame delayed at time "<<t;
+
+  // // cv::imshow("mydepth",raw_depth);
+  // // cv::waitKey(2);
+
+  cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(img, "32FC1");
   okvis::Time t(img->header.stamp.sec, img->header.stamp.nsec);
   t -= okvis::Duration(parameters.camera.image_delay);
 
-  if (!se_interface->addDepthImage(t, raw_depth)) 
+  if (!se_interface->addDepthImage(t, cv_ptr->image))
     LOG(WARNING) << "Depth frame delayed at time "<<t;
-
-  // cv::imshow("mydepth",raw_depth);
-  // cv::waitKey(2);
 
 }
 

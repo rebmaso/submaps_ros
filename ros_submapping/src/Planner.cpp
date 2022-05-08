@@ -39,6 +39,14 @@ Planner::Planner(SupereightInterface* se_interface_) {
   // bounds.setLow(2,-2);
   // bounds.setHigh(2,10);
 
+  // // parking_lot
+  // bounds.setLow(0,-25);
+  // bounds.setHigh(0,10);
+  // bounds.setLow(1,-2);
+  // bounds.setHigh(1,40);
+  // bounds.setLow(2,-2);
+  // bounds.setHigh(2,4);
+
   // stairs
   bounds.setLow(0,-10);
   bounds.setHigh(0,10);
@@ -54,23 +62,11 @@ Planner::Planner(SupereightInterface* se_interface_) {
 
   ss = std::make_shared<og::SimpleSetup>(space);
 
-  // // create a start state
-  // start = std::make_shared<ob::ScopedState<ob::RealVectorStateSpace>>(space);
-  // (**start)[0] = 0;
-  // (**start)[1] = 0;
-  // (**start)[2] = 0;
-
   // create start state
   ob::ScopedState<ob::RealVectorStateSpace> start_ompl(space);
   (*start_ompl)[0] = 0;
   (*start_ompl)[1] = 0;
   (*start_ompl)[2] = 0;
-
-  // // create a goal state
-  // goal = std::make_shared<ob::ScopedState<ob::RealVectorStateSpace>>(space);
-  // (**goal)[0] = 0;
-  // (**goal)[1] = 0;
-  // (**goal)[2] = 0;
 
   // create goal state
   ob::ScopedState<ob::RealVectorStateSpace> goal_ompl(space);
@@ -88,10 +84,13 @@ Planner::Planner(SupereightInterface* se_interface_) {
   ob::OptimizationObjectivePtr obj(new ob::PathLengthOptimizationObjective(ss->getSpaceInformation()));
 	obj->setCostToGoHeuristic(&ob::goalRegionCostToGo);
 
-  // (optional) if we want to benchmark the planner, lets take the first (prob. crappy) solution, with this hack
-  // if we dont set this, rrtstar will keep on looking for better solutions until it runs out of time
-  ob::Cost cost(100.0); // set super high cost treshold
-  obj->setCostThreshold(cost); // so planning stops as soon as a first solution is found
+  // // (optional) if we want to benchmark the planner, lets take the first (prob. crappy) solution, with this hack
+  // // if we dont set this, rrtstar will keep on looking for better solutions until it runs out of time
+  // only need this for rrt* /informed rrt * (the optimal ones)
+  // rrt and rrt connect take the first sol by default,
+  // and then you can simplify the solution after
+  // ob::Cost cost(1000.0); // set super high cost treshold
+  // obj->setCostThreshold(cost); // so planning stops as soon as a first solution is found
 
   // set Optimization objective
   ss->setOptimizationObjective(obj);
@@ -115,21 +114,12 @@ Planner::Planner(SupereightInterface* se_interface_) {
 void Planner::setStart(const Eigen::Vector3d & r)
 {
 
-  // for (int i = 0; i < 3; i++)
-  // {
-  //   (**start)[i] = r[i];
-  // }
-
   start = r;
 
 }
 
 void Planner::setGoal(const Eigen::Vector3d & r)
 {
-  // for (int i = 0; i < 3; i++)
-  // {
-  //   (**goal)[i] = r[i];
-  // }
 
   goal = r;
 
@@ -137,10 +127,6 @@ void Planner::setGoal(const Eigen::Vector3d & r)
 
 bool Planner::plan()
 { 
-  // this condition is needed to avoid planning when we have not assigned a goal yet (at startup)
-  // but new maps are still added because e.g. the drone is flying around manually
-  // when we set the first goal with setGoal() -> start = true
-  // if(!started) return true;
 
   // set the fixed lookups for the collision checking func
 
@@ -182,12 +168,13 @@ bool Planner::plan()
   // load current start & goal
   ss->setStartAndGoalStates(start_ompl, goal_ompl);
 
+  // planner will keep optimizing for 0.2 secs, unless
+  // you set a large cost treshold
   ob::PlannerStatus solved = ss->solve(10.0);
 
   if (solved) {
 
   // get optimal path
-  // path.reset(&(ss->getSolutionPath())); // which way is correct?
   *path = ss->getSolutionPath();
 
   og::PathSimplifier path_simp(ss->getSpaceInformation()); // path simplifier
@@ -207,7 +194,6 @@ bool Planner::plan()
   return true; 
   }
   
-  // std::cout << "\n\n(Planner) Planning failed! \n\n";
   return false; // if not solved
  
 }
@@ -215,24 +201,11 @@ bool Planner::plan()
 void Planner::processState(const okvis::State& state, const okvis::TrackingState& trackingstate)
 {
 
-  // Eigen::Vector3d r = state.T_WS.r();
-  
-  // for (int i = 0; i < 3; i++)
-  // {
-  //   (**start)[i] = r[i];
-  // }
 
   start = state.T_WS.r();
 
 }
 
-// void Planner::updateStartState(const Eigen::Vector3f & r)
-// {
-//   for (int i = 0; i < 3; i++)
-//   {
-//     (**start)[i] = r[i];
-//   }
-// }
 
 bool Planner::detectCollision(const ompl::base::State *state) 
 {

@@ -649,6 +649,9 @@ void Publisher::publishKeyframesAsCallback(const State &latestState, const Track
 
   for (int i = 0; i < keyframeStates.size(); i++) // iterate over keyframes stdvector
   {
+
+  const unsigned int id = keyframeStates[i].id.value();
+  const unsigned int idx = id % submap_colors.size(); 
   
   // single marker
   visualization_msgs::Marker KFmsg_;
@@ -661,7 +664,7 @@ void Publisher::publishKeyframesAsCallback(const State &latestState, const Track
   if ((ros::Time::now() - KFtimestamp).toSec() > 10.0)
     KFmsg_.header.stamp = ros::Time::now(); // weird hack
   KFmsg_.ns = "kf_ns";
-  KFmsg_.id = keyframeStates[i].id.value(); // id of the keyframe
+  KFmsg_.id = id; // id of the keyframe
   KFmsg_.type = visualization_msgs::Marker::MESH_RESOURCE;
   KFmsg_.mesh_resource = "package://rviz_submapping/meshes/camera.stl";
   KFmsg_.action = visualization_msgs::Marker::ADD;

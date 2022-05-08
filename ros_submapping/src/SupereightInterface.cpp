@@ -84,11 +84,12 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
                                   uint64_t &keyframeId,
                                   KeyFrameDataVec &keyFrameDataVec,
                                   bool &loop_closure) {
-  // Locate the state timestamp closest to the finalTimestamp. Todo-> Switch the
-  // backend of the threadsafe Queue to a deque ToDo -> Queue is sorted, use
-  // binary search instead of linear Search
 
-  // Get the okvis update closest to the finalTimestamp -> then we predict with imu integration
+  // Get the okvis update closest to the finalTimestamp 
+  // (which is the time of the depth frame) -> then we predict with imu integration
+  // Using okvis trajectory we should not need all this initialstatedata bull, 
+  // but okvis trakectory does not tell us if a state is a kf and all that
+  // so we still do this
   OkvisUpdate initialStateData;
   OkvisUpdate initialStateTemp;
   while (stateUpdates_.getCopyOfFrontBlocking(&initialStateTemp)) {
@@ -101,8 +102,6 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
     stateUpdates_.PopNonBlocking(&initialStateTemp);
   }
 
-  // Check that the initialStateData is initialised. Todo-> Clarify why we need
-  // this
   if (initialStateData.keyframeStates.empty()) return false;
 
   if (initialStateData.isKeyframe || no_kf_yet) { // first update should always be keyframe
@@ -149,21 +148,14 @@ void SupereightInterface::processSupereightFrames() {
     if (!supereightFrames_.PopNonBlocking(&supereightFrame))
       continue;
 
-    // Proceed with supereight integration
-    // const auto start_time = std::chrono::high_resolution_clock::now();
-
     //  Update pose lookup --> each time a new seframe arrives, it contains updated info on all kf poses.
     //  we update here all poses
-
-    // std::cout << "optimized KFs: \n";
 
     for (auto &keyframeData : supereightFrame.keyFrameDataVec) {
 
     
       const uint64_t id = keyframeData.id;
       const Transformation T_WM = keyframeData.T_WM;
-
-      // std::cout << " " << id << "\n";
       
       // Check If Id exists.
       if (submapPoseLookup_.count(id)) {
@@ -219,7 +211,7 @@ void SupereightInterface::processSupereightFrames() {
         (*(submapLookup_[prevKeyframeId]))->saveMesh(meshFilename);
                 
         // call submap visualizer (it's threaded)
-        // publishSubmaps();
+        publishSubmaps();
       }
 
       // create new map
@@ -258,28 +250,11 @@ void SupereightInterface::processSupereightFrames() {
       se::MapIntegrator integrator(
           *activeMap); //< ToDo -> Check how fast this constructor is
 
-      // auto depthFrame_pose = submapPoseLookup_[prevKeyframeId].T().inverse().cast<float>() * supereightFrame.T_WC.T().cast<float>();
-      
-      // if (depthFrame_pose(0,0) < 0 || depthFrame_pose(1,1) < 0 || depthFrame_pose(2,2) < 0)
-      // {
-      //   std::cout << depthFrame_pose.block<3,3>(0,0) << "\n \n \n";
-      // }
-
-      // std::cout << submapPoseLookup_[prevKeyframeId].T().inverse() << "\n\n";
-
       Eigen::Matrix4f T_KC = (submapPoseLookup_[prevKeyframeId].T().inverse() * supereightFrame.T_WC.T()).cast<float>();
-
-      //Display
-      cv::imshow("seframe", depthImage2Mat(supereightFrame.depthFrame));
-      cv::waitKey(2);
       
       integrator.integrateDepth(sensor_, supereightFrame.depthFrame,
                                 T_KC, frame);
       frame++;
-
-      static unsigned int buttami = 0;
-      buttami ++;
-      if(!(buttami % 1)) publishSubmaps();
 
       // const auto current_time = std::chrono::high_resolution_clock::now();
       // // Some couts, remove when done debugging.
@@ -307,9 +282,6 @@ void SupereightInterface::pushSuperEightData() {
     CameraMeasurement depthMeasurement;
     if (!depthMeasurements_.PopNonBlocking(&depthMeasurement))
       continue;
-
-    // cv::imshow("Depth", depthMeasurement.measurement.depthImage);
-    // cv::waitKey(2);
 
     // Compute the respective pose using the okvis updates and the IMU
     // measurements.
@@ -485,8 +457,6 @@ void SupereightInterface::redoSpatialHashing(const uint64_t id, const Transforma
           pos_floor(i) = (int)(floor(pos_world(i)/side));
         }
 
-        // std::cout << "   box \n " << pos_floor <<  "\n";
-
         // add to index 
         hashTable_[pos_floor].insert(id);
 
@@ -524,8 +494,6 @@ void SupereightInterface::doPrelimSpatialHashing(const uint64_t id, const Eigen:
   }
 
   std::unique_lock<std::mutex> lk(hashTableMutex_);
-
-  // std::cout << "PRELIM HASHING \n";
 
   // add dimensions in lookup
   // should be relative to map frame but who cares... this is just a big box
@@ -693,8 +661,6 @@ void SupereightInterface::doSpatialHashing(const uint64_t id, const Transformati
     } 
   }
 
-  // std::cout << "Map dimensions (meters): \nmin \n" << min_box_metres << "\nmax \n" << max_box_metres << "\n";
-
   // insert map bounds in the lookup
   Eigen::Matrix<float,6,1> dims;
   dims << min_box_metres, max_box_metres;
@@ -706,9 +672,6 @@ void SupereightInterface::doSpatialHashing(const uint64_t id, const Transformati
 
   const float side = 1.0; // hardcoded hash map box side of 1m
   const float step = 0.5 * side * sqrt(2); // this ensures full cover of submap space
-
-  // Eigen::Vector3i minbounds(100,100,100);
-  // Eigen::Vector3i maxbounds(-100,-100,-100);
   
   // need to take all points -> use <=
   for (float x = min_box_metres(0); x <= max_box_metres(0); x+=step)
@@ -750,12 +713,6 @@ void SupereightInterface::doSpatialHashing(const uint64_t id, const Transformati
         }
 
   lk.unlock();
-
-  // auto kf_pos = submapPoseLookup_[id].r(); 
-  // std::cout << "Keyframe position: " << kf_pos(0) << " " << kf_pos(1) << " " << kf_pos(2) << "\n";
-  // std::cout << "x lims: " << minbounds(0) << " | " << maxbounds(0) <<  "\n";
-  // std::cout << "y lims: " << minbounds(1) << " | " << maxbounds(1) <<  "\n";
-  // std::cout << "z lims: " << minbounds(2) << " | " << maxbounds(2) <<  "\n";
 
 }
 

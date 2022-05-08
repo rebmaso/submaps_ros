@@ -16,10 +16,6 @@
 #include <se/supereight.hpp>
 #include <thread>
 
-// to use ompl classes
-#include <ompl/base/State.h>
-#include <ompl/base/spaces/SE3StateSpace.h>
-
 // Some convenient typedefs
 typedef se::Image<float> DepthFrame;
 typedef okvis::CameraMeasurement CameraMeasurement;

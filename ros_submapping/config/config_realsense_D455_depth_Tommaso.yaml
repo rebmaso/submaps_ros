@@ -39,3 +39,50 @@ sensor:
   left_hand_frame:            false
   near_plane:                 0.4
   far_plane:                  4.0
+
+planner:
+
+  # # main_hall scene
+  # min_x:                      -5.0
+  # max_x:                      40.0
+  # min_y:                      -5.0
+  # max_y:                      50.0
+  # min_z:                      -2.0
+  # max_z:                      10.0
+  # mav_radius:                 0.5
+
+  # # parking_lot scene
+  # min_x:                      -25.0
+  # max_x:                      10.0
+  # min_y:                      -2.0
+  # max_y:                      40.0
+  # min_z:                      -2.0
+  # max_z:                      4.0
+  # mav_radius:                 0.5
+
+  # # stairs scene
+  # min_x:                      -10.0
+  # max_x:                      10.0
+  # min_y:                      -10.0
+  # max_y:                      25.0
+  # min_z:                      -10.0
+  # max_z:                      5.0
+  # mav_radius:                 0.4
+
+  # # bike_shed_1 scene
+  # min_x:                      -25.0
+  # max_x:                      7.0
+  # min_y:                      -7.0
+  # max_y:                      25.0
+  # min_z:                      -3.0
+  # max_z:                      4.0
+  # mav_radius:                 0.5
+
+  # # generic big flat map
+  # min_x:                      -50.0
+  # max_x:                      50.0
+  # min_y:                      -50.0
+  # max_y:                      50.0
+  # min_z:                      -10.0
+  # max_z:                      10.0
+  # mav_radius:                 0.5

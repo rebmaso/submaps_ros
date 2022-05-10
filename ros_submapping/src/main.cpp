@@ -225,7 +225,7 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
   // =============== PLANNER ===============
 
   // creates planner object, passing seinterface object pointer
-  planner = std::make_shared<Planner>(se_interface.get());
+  planner = std::make_shared<Planner>(se_interface.get(), config_s8);
 
 
   // =============== REGISTER CALLBACKS ===============

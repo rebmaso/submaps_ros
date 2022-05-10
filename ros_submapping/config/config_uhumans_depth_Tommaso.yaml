@@ -1,7 +1,7 @@
 %YAML:1.2
 
 map:
-  dim:                        [20.0, 20.0, 20.0] #[10.24, 10.24, 10.24]
+  dim:                        [20.0, 20.0, 20.0]
   res:                        0.2
 
 data:
@@ -26,7 +26,6 @@ data:
   k_sigma:                    0.05
 
 sensor:
-  # all these values were taken from components_snippets.xacro
   width:                      720
   height:                     480
   fx:                         415.692194
@@ -37,3 +36,13 @@ sensor:
   near_plane:                 0.4
   far_plane:                  4.0
 
+planner:
+
+  # apartment scene
+  min_x:                      -1.0
+  max_x:                      25.0
+  min_y:                      -5.0
+  max_y:                      4.0
+  min_z:                      -4.0
+  max_z:                      4.0
+  mav_radius:                 0.3

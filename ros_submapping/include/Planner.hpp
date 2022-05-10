@@ -70,6 +70,8 @@ private:
 
   Eigen::Vector3d goal; // updated at each planning query
 
+  float mav_radius;
+
   pathCallback pathCallback_; // external visualizer (it's in Publisher)
 
   //bool started; // a flag that is needed to avoid unnecessary planning at startup
@@ -82,8 +84,8 @@ public:
   
   Planner() = delete;
 
-  // sets planner config. pass the supereightinterface svc handle from main
-  Planner(SupereightInterface* se_interface_);
+  // sets planner config. pass the supereightinterface svc handle from main + config file for planner bounds
+  Planner(SupereightInterface* se_interface_, const std::string& filename);
 
   ~Planner() = default;
 

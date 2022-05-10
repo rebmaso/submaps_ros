@@ -1,6 +1,6 @@
 #include "Planner.hpp"
 
-Planner::Planner(SupereightInterface* se_interface_) {
+Planner::Planner(SupereightInterface* se_interface_, const std::string& filename) {
 
   // ============ SET SEINTERFACE PTR ============  
 
@@ -11,51 +11,50 @@ Planner::Planner(SupereightInterface* se_interface_) {
   space = std::make_shared<ob::RealVectorStateSpace>(3);
 
   // set the bounds for the R^3 part of SE(3) (position)
+
+  float raw_bounds[6];
+
+  // Open the file for reading
+  // TODO catch exception for missing stuff in yaml
+
+  cv::FileStorage fs;
+  fs.open(filename, cv::FileStorage::READ | cv::FileStorage::FORMAT_YAML);
+
+  // Get the node containing the sensor configuration.
+  const cv::FileNode node = fs["planner"];
+
+  // Read the config parameters.
+  se::yaml::subnode_as_float(node, "min_x", raw_bounds[0]);
+  se::yaml::subnode_as_float(node, "max_x", raw_bounds[1]);
+  se::yaml::subnode_as_float(node, "min_y", raw_bounds[2]);
+  se::yaml::subnode_as_float(node, "max_y", raw_bounds[3]);
+  se::yaml::subnode_as_float(node, "min_z", raw_bounds[4]);
+  se::yaml::subnode_as_float(node, "max_z", raw_bounds[5]);
+
+  // set collision function radius
+  se::yaml::subnode_as_float(node, "mav_radius", mav_radius);
+
+  std::cout << "\n\nPlanner bounds set as: ";
+
+  for (int i = 0; i < 6; i++)
+  {
+    std::cout << raw_bounds[i] << "  ";
+  }
+
+  std::cout << "\n\n";
+
+  std::cout << "\n\nMAV radius in planner set as: " << mav_radius << "\n\n";
+
   ob::RealVectorBounds bounds(3);
 
-  // important: define here the box inside which you intend to plan
-  
-  // // uHumans
-  // bounds.setLow(0,-1);
-  // bounds.setHigh(0,25);
-  // bounds.setLow(1,-5);
-  // bounds.setHigh(1,4);
-  // bounds.setLow(2,-4);
-  // bounds.setHigh(2,4);
+  // set bounds
+  bounds.setLow(0, raw_bounds[0]);
+  bounds.setHigh(0,raw_bounds[1]);
+  bounds.setLow(1,raw_bounds[2]);
+  bounds.setHigh(1,raw_bounds[3]);
+  bounds.setLow(2,raw_bounds[4]);
+  bounds.setHigh(2,raw_bounds[5]);
 
-  // // gazebo garching
-  // bounds.setLow(0,-3);
-  // bounds.setHigh(0,10);
-  // bounds.setLow(1,-3);
-  // bounds.setHigh(1,6);
-  // bounds.setLow(2,-1);
-  // bounds.setHigh(2,5);
-
-  // // main_hall 
-  // bounds.setLow(0,-5);
-  // bounds.setHigh(0,40);
-  // bounds.setLow(1,-5);
-  // bounds.setHigh(1,50);
-  // bounds.setLow(2,-2);
-  // bounds.setHigh(2,10);
-
-  // // parking_lot
-  // bounds.setLow(0,-25);
-  // bounds.setHigh(0,10);
-  // bounds.setLow(1,-2);
-  // bounds.setHigh(1,40);
-  // bounds.setLow(2,-2);
-  // bounds.setHigh(2,4);
-
-  // stairs
-  bounds.setLow(0,-10);
-  bounds.setHigh(0,10);
-  bounds.setLow(1,-10);
-  bounds.setHigh(1,25);
-  bounds.setLow(2,-10);
-  bounds.setHigh(2,5);
-
-  // set the bounds you just chose
   space->as<ob::RealVectorStateSpace>()->setBounds(bounds);
 
   // ============ SET SIMPLESETUP ============
@@ -107,7 +106,7 @@ Planner::Planner(SupereightInterface* se_interface_) {
 
   //started = false;
 
-  std::cout << "\n\nPlanner initialized...\n\n";
+  std::cout << "\n\nPlanner initialized\n\n";
 
 }
 
@@ -225,7 +224,7 @@ bool Planner::detectCollision(const ompl::base::State *state)
   // check occ inside a sphere around the drone 
   // very sparse 
   // lowest res is 1 voxel = 0.2m
-  const float rad = 0.3; // radius of the sphere
+  const float rad = mav_radius; // radius of the sphere
 
   for (float z = -rad; z <= rad; z += rad/2)
   {

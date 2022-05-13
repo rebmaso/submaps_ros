@@ -220,7 +220,7 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
   
   // run in real time or not?
   // while tracking should be real time, dont care too much about mapping
-  se_interface->setBlocking(true);
+  se_interface->setBlocking(false);
 
   // =============== PLANNER ===============
 
@@ -343,25 +343,27 @@ void RosInterfacer::imgsCallback(const sensor_msgs::ImageConstPtr& img_0, const 
                     const_cast<uint8_t*>(&img_1->data[0]), img_1->step);
 
 
-  // better to filter to remove noise?
-  // saw this in okvis ros once
-  //   cv::Mat filtered_img_0;
-  //   cv::Mat filtered_img_1;
+  // Why is this necessary?
+  // Im not even filtering!! but if I just take raw_img_
+  // okvis starts generating a ton of kfs after some time
 
-  // if (false) { // filter
-  //   cv::medianBlur(raw_img_0, filtered_img_0, 3);
-  //   cv::medianBlur(raw_img_1, filtered_img_1, 3);
-  // } else { // no filter
-  //   filtered_img_0 = raw_img_0.clone();
-  //   filtered_img_1 = raw_img_1.clone();
-  // }
+  cv::Mat filtered_img_0;
+  cv::Mat filtered_img_1;
+
+  if (false) { // filter
+    cv::medianBlur(raw_img_0, filtered_img_0, 3);
+    cv::medianBlur(raw_img_1, filtered_img_1, 3);
+  } else { // no filter
+    filtered_img_0 = raw_img_0.clone();
+    filtered_img_1 = raw_img_1.clone();
+  }
   
   // take timestamp from left img but they should be the same
   okvis::Time t(img_0->header.stamp.sec, img_0->header.stamp.nsec);
   t -= okvis::Duration(parameters.camera.image_delay);
 
-  img_vector.push_back(raw_img_0);
-  img_vector.push_back(raw_img_1);
+  img_vector.push_back(filtered_img_0);
+  img_vector.push_back(filtered_img_1);
   
   if (!okvis_estimator->addImages(t, img_vector))
     LOG(WARNING) << "Multiframe delayed at time "<<t;

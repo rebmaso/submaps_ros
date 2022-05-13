@@ -1,7 +1,7 @@
 %YAML:1.2
 
 map:
-  dim:                        [20.0, 20.0, 20.0] #[10.24, 10.24, 10.24]
+  dim:                        [20.0, 20.0, 20.0]
   res:                        0.2
 
 data:
@@ -78,11 +78,11 @@ planner:
   # max_z:                      4.0
   # mav_radius:                 0.5
 
-  # # generic big flat map
-  # min_x:                      -50.0
-  # max_x:                      50.0
-  # min_y:                      -50.0
-  # max_y:                      50.0
-  # min_z:                      -10.0
-  # max_z:                      10.0
-  # mav_radius:                 0.5
+  # generic big flat map
+  min_x:                      -50.0
+  max_x:                      50.0
+  min_y:                      -50.0
+  max_y:                      50.0
+  min_z:                      -10.0
+  max_z:                      10.0
+  mav_radius:                 0.5

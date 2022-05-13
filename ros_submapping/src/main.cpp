@@ -13,7 +13,6 @@
 #include <opencv2/opencv.hpp>
 
 // ros
-// #include <Eigen/Core>
 #include <ros/ros.h> 
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/Image.h>
@@ -220,7 +219,8 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
   se_interface = std::make_shared<SupereightInterface>(cameraConfig, mapConfig, dataConfig, T_SC, meshesDir);
   
   // run in real time or not?
-  se_interface->setBlocking(false);
+  // while tracking should be real time, dont care too much about mapping
+  se_interface->setBlocking(true);
 
   // =============== PLANNER ===============
 
@@ -252,9 +252,6 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
   // block version:
   // se_interface->setSubmapCallback(std::bind(&Publisher::publishSubmapsAsCallback, &publisher, std::placeholders::_1,std::placeholders::_2));
 
-  // trigger plan() every time a new submap is created
-  // se_interface->setReplanCallback(std::bind(&Planner::plan, planner));
-
   // =============== REGISTER ROS CALLBACKS =============== 
 
   sync.registerCallback(boost::bind(&RosInterfacer::imgsCallback, this, _1, _2));
@@ -269,10 +266,6 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
 
 RosInterfacer::~RosInterfacer()
 {
-
-// switched to smart pointers. dont need these anymore
-
-// delete in reverse order of creation
 
 }
 
@@ -350,24 +343,25 @@ void RosInterfacer::imgsCallback(const sensor_msgs::ImageConstPtr& img_0, const 
                     const_cast<uint8_t*>(&img_1->data[0]), img_1->step);
 
 
-  // SHOULD I FILTER?
-    cv::Mat filtered_img_0;
-    cv::Mat filtered_img_1;
+  // better to filter to remove noise?
+  // saw this in okvis ros once
+  //   cv::Mat filtered_img_0;
+  //   cv::Mat filtered_img_1;
 
-  if (false) { // filter
-    cv::medianBlur(raw_img_0, filtered_img_0, 3);
-    cv::medianBlur(raw_img_1, filtered_img_1, 3);
-  } else { // no filter
-    filtered_img_0 = raw_img_0.clone();
-    filtered_img_1 = raw_img_1.clone();
-  }
+  // if (false) { // filter
+  //   cv::medianBlur(raw_img_0, filtered_img_0, 3);
+  //   cv::medianBlur(raw_img_1, filtered_img_1, 3);
+  // } else { // no filter
+  //   filtered_img_0 = raw_img_0.clone();
+  //   filtered_img_1 = raw_img_1.clone();
+  // }
   
   // take timestamp from left img but they should be the same
   okvis::Time t(img_0->header.stamp.sec, img_0->header.stamp.nsec);
   t -= okvis::Duration(parameters.camera.image_delay);
 
-  img_vector.push_back(filtered_img_0);
-  img_vector.push_back(filtered_img_1);
+  img_vector.push_back(raw_img_0);
+  img_vector.push_back(raw_img_1);
   
   if (!okvis_estimator->addImages(t, img_vector))
     LOG(WARNING) << "Multiframe delayed at time "<<t;
@@ -376,8 +370,7 @@ void RosInterfacer::imgsCallback(const sensor_msgs::ImageConstPtr& img_0, const 
 
 void RosInterfacer::depthCallback(const sensor_msgs::ImageConstPtr& img){
 
-  // DO NOT USE THIS!!! SOMETHINGS MESSED UP 
-  // ONLY USE CVBRIDGE
+  // TODO understand why this shit does not work w realsense. gonna have to stop using cv bridge sooner or later
 
   // cv::Mat raw_depth(img->height, img->width, CV_32FC1, const_cast<uint8_t*>(&img->data[0]), img->step);
   // okvis::Time t(img->header.stamp.sec, img->header.stamp.nsec);

@@ -86,11 +86,11 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
                                   KeyFrameDataVec &keyFrameDataVec,
                                   bool &loop_closure) {
 
-  // Get the okvis update closest to the finalTimestamp 
-  // (which is the time of the depth frame) -> then we predict with imu integration
-  // Using okvis trajectory we should not need all this initialstatedata bull, 
-  // but okvis trakectory does not tell us if a state is a kf and all that
-  // so we still do this
+  // Get the okvis update closest to the finalTimestamp (the stamp of the depth frame)
+  // This should be redundant, since okvis::trajectory does not need it to do imu prop
+  // however, we also need to know which if latest okvis update is a keyframe! 
+  // okvis trajectory does not keep a copy of the tracking state. so we must still do this redundant bull
+
   OkvisUpdate initialStateData;
   OkvisUpdate initialStateTemp;
   while (stateUpdates_.getCopyOfFrontBlocking(&initialStateTemp)) {
@@ -105,7 +105,7 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
 
   if (initialStateData.keyframeStates.empty()) return false;
 
-  if (initialStateData.isKeyframe || no_kf_yet) { // first update should always be keyframe
+  if (initialStateData.isKeyframe || no_kf_yet) { // first update should always be keyframe, but lets be safe
     no_kf_yet = false;
     keyframeId = initialStateData.latestState.id.value();
     latestKeyframeId = keyframeId;

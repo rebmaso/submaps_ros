@@ -56,7 +56,7 @@
 #include <opencv2/core/core.hpp>
 #include <ros/ros.h>
 #include <tf/transform_broadcaster.h>
-#include <pcl_ros/point_cloud.h>
+// #include <pcl_ros/point_cloud.h>
 #pragma GCC diagnostic pop
 #include <nav_msgs/Odometry.h>
 #include <nav_msgs/Path.h>
@@ -402,10 +402,10 @@ class Publisher
   geometry_msgs::TransformStamped markerPoseMsg_; ///< Pose message.
   nav_msgs::Odometry odometryMsg_;  ///< Odometry message.
   nav_msgs::Odometry markerOdometryMsg_; ///< Marker odometry message.
-  okvis::MapPointVector pointsMatched2_;  ///< Matched points vector.
-  pcl::PointCloud<pcl::PointXYZRGB> pointsMatched_; ///< Point cloud for matched points.
-  pcl::PointCloud<pcl::PointXYZRGB> pointsUnmatched_; ///< Point cloud for unmatched points.
-  pcl::PointCloud<pcl::PointXYZRGB> pointsTransferred_; ///< Point cloud for transferred/marginalised points.
+  // okvis::MapPointVector pointsMatched2_;  ///< Matched points vector.
+  // pcl::PointCloud<pcl::PointXYZRGB> pointsMatched_; ///< Point cloud for matched points.
+  // pcl::PointCloud<pcl::PointXYZRGB> pointsUnmatched_; ///< Point cloud for unmatched points.
+  // pcl::PointCloud<pcl::PointXYZRGB> pointsTransferred_; ///< Point cloud for transferred/marginalised points.
   std::vector<cv::Mat> images_; ///< The images.
   nav_msgs::Path path_; ///< The path message.
   visualization_msgs::Marker meshMsg_; ///< Mesh message.

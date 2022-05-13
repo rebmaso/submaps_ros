@@ -1,15 +1,13 @@
 cmake_minimum_required(VERSION 3.10)
 project(ros_submapping)
 
-# if you have trouble with some package, remember to try HINTS option in find_package or set the cmake path
-
 # C++ standard
 set(CMAKE_CXX_STANDARD 17)
-# WITHOUT WE GET CONFLICTING EIGEN SETTINGS INSIDE OKVIS THAT LEAD TO ALIGNMENT ISSUES
+
+# set these flags to avoid issues within okvis
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -fPIC") # -march=native
 
 find_package(catkin REQUIRED COMPONENTS 
-gazebo_msgs 
 geometry_msgs 
 roscpp 
 sensor_msgs 
@@ -18,32 +16,10 @@ cv_bridge
 image_transport
 pcl_conversions
 pcl_ros
-dynamic_reconfigure)
-
-catkin_package(
-  # CATKIN_DEPENDS
-  #   gazebo_msgs
-  #   geometry_msgs
-  #   roscpp
-  #   sensor_msgs
-  #   message_filters
-  #   image_transport
-  #   cv_bridge
-  # pcl_conversions
-  # pcl_ros
-  #   dynamic_reconfigure
 )
 
-# # Add ompl
-# find_package(OMPL HINTS /usr/local) # ompl or OMPL?
-# message(FATAL_ERROR 
-# "OMPL FOUND: ${OMPL_FOUND} 
-# \nOMPL_INCLUDE_DIRS: ${OMPL_INCLUDE_DIRS}
-# \nOMPL_LIBRARIES: ${OMPL_LIBRARIES}
-# \nOMPLAPP_LIBRARIES: ${OMPLAPP_LIBRARIES}")
-# include_directories(${OMPL_INCLUDE_DIRS})
-# link_directories(${OMPL_LIBRARIES})
-# link_directories(${OMPLAPP_LIBRARIES})
+catkin_package()
+
 
 find_package(ompl REQUIRED)
 include_directories(${OMPL_INCLUDE_DIRS})

@@ -220,7 +220,6 @@ bool Planner::detectCollision(const ompl::base::State *state)
   // start -> is free. Adds a bit of overhead (but maybe also saves some time). Comment out when benchmarking
   if((r.head<3>() - start_fixed).norm() < 0.5) return true;
 
-
   // check occ inside a sphere around the drone 
   // very sparse 
   // lowest res is 1 voxel = 0.2m
@@ -249,51 +248,41 @@ bool Planner::detectCollision(const ompl::base::State *state)
           box_coord(i) = (int)(floor(r_new(i)));
         }
 
-        // we add occupancy values here
+        // iterate over submap ids (only the ones that contain current state!)
+        // if not in any submap -> return false
+        if (!se_interface->hashTable_read.count(box_coord)) return false;
+
+        // need this to avg occupancy
         double tot_occupancy = 0; 
 
-        //to consider universally unmapped voxels as occupied;
-        bool unmapped = true;
-
-        // iterate over submap ids (only the ones that contain current state!)
-        if (!se_interface->hashTable_read.count(box_coord)) return false;
         for (auto& id: se_interface->hashTable_read[box_coord]) {
 
           // transform state coords to check from world to map frame
           const Eigen::Matrix4d T_wf = se_interface->submapPoseLookup_read[id].T(); // kf wrt world
           const Eigen::Vector4d r_map_hom = T_wf.inverse() * r_new;// state coordinates (homogenous) in map frame
-
           const Eigen::Vector3f r_map = r_map_hom.head<3>().cast<float>(); // take first 3 elems and cast to float
           
           // if voxel belongs to current submap
           if (!se_interface->submapLookup_read.count(id)) return false;
           if((*se_interface->submapLookup_read[id])->contains(r_map))
           {
-            unmapped = false;
             auto data = (*se_interface->submapLookup_read[id])->getData(r_map);
             double occupancy = data.occupancy * data.weight; // occupancy value of the 3d point
             tot_occupancy += occupancy;
           }
         } 
         
-        // when done iterating over submaps, check total occupancy / check if unmapped
+        // when done iterating over submaps, check total occupancy
 
         if(tot_occupancy >= -20) {
-          // std::cout << "\n \n OCCUPIED! \n \n";
           return false; // occupied!
-        }
-
-        // if the voxel is not found in any submap
-        if(unmapped) {
-          // std::cout << "\n \n UNMAPPED! \n \n"; 
-          return false;
         }
         
       } // x
     } // y
   } // z
 
-  // if we reach this point, it means every point on the circle is free
+  // if we reach this point, it means every point in the sphere is free
   return true;
 
 }

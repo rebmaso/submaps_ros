@@ -55,43 +55,44 @@ private:
 
   // ============= OKVIS + SE =============
 
-  // okvis::ThreadedSlam* okvis_estimator; // okvis interface
+  // okvis interface
   std::shared_ptr<okvis::ThreadedSlam> okvis_estimator;
 
-  //SupereightInterface* se_interface; // supereight interface
+  // supereight interface
   std::shared_ptr<SupereightInterface> se_interface;
 
-  //okvis::TrajectoryOutput* writer; // to write traj estimate
+  // to write traj estimate
   // std::shared_ptr<okvis::TrajectoryOutput> writer;
 
-  okvis::ViParameters parameters; // to configure okvis
+  // to configure okvis
+  okvis::ViParameters parameters;
 
   // ============= ROS =============
 
-  ros::NodeHandle nh; // ros node handle
+  ros::NodeHandle nh;
 
   ros::Subscriber navgoal_sub;
 
-  Publisher publisher; // to visualize topics in rviz
+  // to visualize topics in rviz
+  Publisher publisher;
 
-  ros::Subscriber imu_sub; // imu topic subscriber
+  ros::Subscriber imu_sub;
 
   image_transport::ImageTransport it; // for depth disparity callback
   image_transport::Subscriber depth_sub; // depth disparity subscriber
 
-  message_filters::Subscriber<Image> image0_sub; //(nh, "/firefly/vi_sensor/left/image_raw", 1000);
-  message_filters::Subscriber<Image> image1_sub; //(nh, "/firefly/vi_sensor/right/image_raw", 1000);
+  message_filters::Subscriber<Image> image0_sub;
+  message_filters::Subscriber<Image> image1_sub;
   typedef sync_policies::ApproximateTime<Image, Image> MySyncPolicy;
-  message_filters::Synchronizer<MySyncPolicy> sync; // sync(MySyncPolicy(1000), image0_sub, image1_sub);
+  message_filters::Synchronizer<MySyncPolicy> sync;
 
   // ============= PLANNER =============
 
-  //Planner* planner; // ompl interface
   std::shared_ptr<Planner> planner;
 
   // ============= SOME PVT FUNCTIONS =============
 
-  void slam_loop(); // threaded processing loop
+  void slam_loop();
 
   // ============= THREADS =============
 
@@ -101,17 +102,18 @@ private:
   
 public:
 
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW // to avoid alignment issues, just in case
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   RosInterfacer() = delete;
 
   RosInterfacer(char** argv);
 
-  ~RosInterfacer(); // used some news. so we need this
+  ~RosInterfacer();
 
-  int start(); // starts the processing loop
+  // Starts the processing loop
+  int start();
 
-  // ros callbacks
+  // ROS callbacks
   void navGoalCallback(const geometry_msgs::Point &msg);
   void imuCallback(const sensor_msgs::ImuConstPtr& msg);
   void imgsCallback(const sensor_msgs::ImageConstPtr& img_0, const sensor_msgs::ImageConstPtr& img_1);
@@ -124,7 +126,7 @@ image0_sub(nh, std::string(argv[5]), 1000), image1_sub(nh, std::string(argv[6]),
 sync(MySyncPolicy(1000), image0_sub, image1_sub)
 {
 
-  // sets the args
+  // Sets the args
   config_okvis = argv[1];
   config_s8 = argv[2];
   package_dir = argv[3];
@@ -137,27 +139,27 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
   FLAGS_stderrthreshold = 0; // INFO: 0, WARNING: 1, ERROR: 2, FATAL: 3
   FLAGS_colorlogtostderr = 1;
 
-  // read configuration file for OKVIS
+  // Read configuration file for OKVIS
   std::string configFilename(config_okvis);
 
   okvis::ViParametersReader viParametersReader(configFilename);
   viParametersReader.getParameters(parameters);
    
-  // store output stuff (est trajectory, meshes computed by s8, dbow vocab)
-  // everything should be in a folder named utils in your ws
+  // Store output stuff (est trajectory, meshes computed by s8, dbow vocab)
+  // Everything should be in a folder named utils in your ws
   boost::filesystem::path package(package_dir);
-  package.remove_filename().remove_filename(); // now path is your workspace
+  package.remove_filename().remove_filename(); // Now path is your workspace
 
   std::string trajectoryDir = package.string() + "/utils";
   std::string meshesDir = package.string() + "/utils" + "/meshes";
-  publisher.setMeshesPath(meshesDir); // tell publisher where submap meshes are
+  publisher.setMeshesPath(meshesDir); // Tell publisher where submap meshes are
   std::string dBowVocDir = package.string() + "/utils";
 
 
   // =============== DELETE OLD MESHES ===============
 
   boost::filesystem::path root(meshesDir);
-  std::vector<boost::filesystem::path> paths; // paths of all ply files in directory
+  std::vector<boost::filesystem::path> paths; // Paths of all ply files in directory
   
 
   if (boost::filesystem::exists(root) && boost::filesystem::is_directory(root))
@@ -219,22 +221,21 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
   se_interface = std::make_shared<SupereightInterface>(cameraConfig, mapConfig, dataConfig, T_SC, meshesDir);
   
   // run in real time or not?
-  // while tracking should be real time, dont care too much about mapping
+  // while tracking should be real time, it's not relevant with depth integration
+  // so you can also run it blocking
   se_interface->setBlocking(false);
 
   // =============== PLANNER ===============
 
-  // creates planner object, passing seinterface object pointer
   planner = std::make_shared<Planner>(se_interface.get(), config_s8);
 
 
   // =============== REGISTER CALLBACKS ===============
 
-  // set path visualizer
+  // Set path visualizer
   planner->setPathCallback(std::bind(&Publisher::publishPathAsCallback, &publisher, std::placeholders::_1));
 
-  // send state to publisher, writer, planner. send state + graph (keyframes) to seinterface 
-  // I'm not passing the landmarks
+  // Send state to publisher, writer, planner. send state + graph (keyframes) to seinterface 
   okvis_estimator->setOptimisedGraphCallback([&](const okvis::State & _1, 
                              const okvis::TrackingState & _2,
                              std::shared_ptr<const okvis::AlignedVector<State>> _3,
@@ -246,10 +247,10 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
                               planner->processState(_1,_2);
                               se_interface->stateUpdateCallback(_1,_2,_3);});
 
-  //// visualize the submaps
-  // mesh version:
+  //// Sisualize the submaps
+  // Mesh version:
   se_interface->setSubmapMeshesCallback(std::bind(&Publisher::publishSubmapMeshesAsCallback, &publisher, std::placeholders::_1));
-  // block version:
+  // Block version:
   // se_interface->setSubmapCallback(std::bind(&Publisher::publishSubmapsAsCallback, &publisher, std::placeholders::_1,std::placeholders::_2));
 
   // =============== REGISTER ROS CALLBACKS =============== 
@@ -275,7 +276,7 @@ int RosInterfacer::start()
   
   // =============== START THINGS UP ===============
   
-  // start supereight processing
+  // Start supereight processing
   se_interface->start();
 
   thread_okvis = std::thread(&RosInterfacer::slam_loop,this);
@@ -304,7 +305,6 @@ void RosInterfacer::navGoalCallback(const geometry_msgs::Point &msg)
 {
   Eigen::Vector3d r(msg.x,msg.y,msg.z);
   
-  // start state is set by the mapping thread in supereightinterface
   planner->setGoal(r);
 
   thread_planner = std::thread(&Planner::plan,planner.get());

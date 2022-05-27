@@ -49,9 +49,11 @@ class Planner
 {
 private:
 
+  // Pointer to the object that we use to get maps.
   SupereightInterface* se_interface;
 
-  ob::StateSpacePtr space; // the state space we are planning in
+  // The state space we are planning in
+  ob::StateSpacePtr space; 
 
   og::SimpleSetupPtr ss;
 
@@ -60,48 +62,80 @@ private:
 
   std::shared_ptr<og::PathGeometric> path;
 
-  // std::shared_ptr<ob::ScopedState<ob::RealVectorStateSpace>> start;
+  // Updated continuously by SLAM callback
+  Eigen::Vector3d start;
 
-  // std::shared_ptr<ob::ScopedState<ob::RealVectorStateSpace>> goal;
+  // Is set at each planning query.
+  Eigen::Vector3d start_fixed; 
 
-  Eigen::Vector3d start; // updated continuously by slam callback
+  // Is set at each planning query.
+  Eigen::Vector3d goal;
 
-  Eigen::Vector3d start_fixed; // is the one that was used at last planning query
-
-  Eigen::Vector3d goal; // updated at each planning query
-
+  // The closest we can get to obstacles.
   float mav_radius;
 
-  pathCallback pathCallback_; // external visualizer (it's in Publisher)
+  // External visualizer 
+  pathCallback pathCallback_;
 
-  //bool started; // a flag that is needed to avoid unnecessary planning at startup
-
-  std::mutex planMutex; // need this to allow only 1 plan() at a time
+  // Need this to allow only 1 plan() at a time
+  std::mutex planMutex;
 
 public:
 
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW // to avoid alignment issues, just in case
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW 
   
   Planner() = delete;
 
-  // sets planner config. pass the supereightinterface svc handle from main + config file for planner bounds
+  /**
+   * @brief      Sets the OMPL configs.
+   *
+   * @param[in]  se_interface_          Ponter to SupereightInterface object that we use to access maps.
+   * @param[in]  filename  Config file that we use to get planner bounds.
+   *
+   */
   Planner(SupereightInterface* se_interface_, const std::string& filename);
 
   ~Planner() = default;
 
+  /**
+   * @brief      Sets the start state.
+   *
+   * @param[in]  r The start state.          
+   *
+   */
   void setStart(const Eigen::Vector3d & r);
 
+  /**
+   * @brief      Sets the goal state.
+   *
+   * @param[in]  r The goal state.          
+   *
+   */
   void setGoal(const Eigen::Vector3d & r);
   
-  // plans path from start to goal
+  /**
+   * @brief      Plans path from current start to goal
+   *
+   */
   bool plan();
 
   void setPathCallback(const pathCallback &pathCallback) { pathCallback_ = pathCallback; }
 
-  // void updateStartState(const Eigen::Vector3f & r);
-
+  /**
+   * @brief      Gets state update from Okvis update
+   *
+   * @param[in]  state          Okvis state.
+   * @param[in]  trackingstate  Okvis tracking state.
+   *
+   */
   void processState(const okvis::State& state, const okvis::TrackingState& trackingstate);
 
+  /**
+   * @brief     OMPL collision detector. Checks among local submaps using spatial hash table.
+   *
+   * @param[in]  state          Queried state.
+   *
+   */
   bool detectCollision(const ompl::base::State *state);
 
 };

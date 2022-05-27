@@ -194,12 +194,14 @@ class Publisher
   void setPath(const okvis::kinematics::Transformation& T_WS);
 
   /**
-   * @brief set the meshes directory where the submaps are.
+   * @brief Sets the meshes directory where the submaps are.
+   * @param meshesDir Directory where the meshes are.
+   * 
    */
   void setMeshesPath(std::string meshesDir);
 
   /**
-   * @brief set T_SC to visualize camera frustum for keyframes
+   * @brief Sets T_SC to visualize camera frustum for keyframes.
   */
   void setT_SC(const Eigen::Matrix4d & T_SC) {
     T_SC_ = T_SC;
@@ -253,26 +255,34 @@ class Publisher
       const okvis::MapPointVector & transferredLandmarks);
 
   /**
-   * @brief publish submaps as meshes.
-   * @param  submapPoseLookup_ the lookuptable with submaps (kf) poses.
+   * @brief Publish submaps as meshes.
+   * @param  submapPoseLookup The lookup table with submaps (kf) poses.
    */
   void publishSubmapMeshesAsCallback(std::unordered_map<uint64_t, Transformation> submapPoseLookup);
 
   /**
-   * @brief publish submaps.
-   * @param  submapPoseLookup_ the lookuptable with submaps (kf) poses.
+   * @brief Publish submaps as array of occupied voxels.
+   * @param  submapPoseLookup The lookup table with submaps (kf) poses.
+   * @param  submapLookup The lookup table with submaps.
    */
   void publishSubmapsAsCallback(std::unordered_map<uint64_t, Transformation> submapPoseLookup, std::unordered_map<uint64_t, SubmapList::iterator> submapLookup);
 
   /**
-   * @brief publish keyframe states.
+   * @brief Publish keyframe states.
+   * 
+   * @param  latestState Okvis state of the latest update.
+   * @param  latestTrackingState Okvis tracking state of the latest update.
+   * @param  keyframeStates Vector of all updated keyframe poses.
+   * 
    */
   void publishKeyframesAsCallback(
     const State &latestState, const TrackingState &latestTrackingState,
     std::shared_ptr<const okvis::AlignedVector<State>> keyframeStates);
 
   /**
-   * @brief publish path computed by ompl.
+   * @brief Publish path computed by OMPL.
+   * 
+   * @param  path OMPL path.
    */
   void publishPathAsCallback(const ompl::geometric::PathGeometric & path);
 

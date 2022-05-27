@@ -28,6 +28,10 @@ typedef okvis::State State;
 typedef se::Octree<se::Data<se::Field::Occupancy, se::Colour::Off, se::Semantics::Off>, se::Res::Multi, 8> OctreeT;
 typedef typename OctreeT::BlockType BlockType;
 
+/**
+ * @brief Extended okvis update: contains all the things we need for depth integration.
+ *
+ */
 struct OkvisUpdate {
   State latestState;
   StateVector keyframeStates;
@@ -48,6 +52,10 @@ struct OkvisUpdate {
 
 typedef okvis::threadsafe::ThreadSafeQueue<OkvisUpdate> StateUpdatesQueue;
 
+/**
+ * @brief Contains essential data about a keyframe: its Id and transformation.
+ *
+ */
 struct KeyframeData {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   uint64_t id;
@@ -84,12 +92,9 @@ struct SupereightFrame {
 typedef okvis::threadsafe::ThreadSafeQueue<SupereightFrame>
     SupereightFrameQueue;
 
-// see include/se/map/map.hpp
 typedef std::list<std::shared_ptr<se::OccupancyMap<se::Res::Multi>>> SubmapList;
 
-// submap callback typedefs
 typedef std::function<void(std::unordered_map<uint64_t, Transformation>)> submapMeshesCallback;
-
 typedef std::function<void(std::unordered_map<uint64_t, Transformation>, std::unordered_map<uint64_t, SubmapList::iterator>)> submapCallback;
 
 class SupereightInterface {
@@ -101,7 +106,12 @@ public:
   /**
    * @brief      Constructs a new instance.
    *
-   * @param[in]  filename  The configuration filename
+   * @param[in]  cameraConfig Pinhole camera configuration.
+   * @param[in]  mapConfig Map configuration.
+   * @param[in]  dataConfig Occupancy mapping configuration.
+   * @param[in]  T_SC Homogenous transformation from sensor to depth camera.
+   * @param[in]  mapConfig Map configuration.
+   * @param[in]  meshesPath  Directory where we store map meshes.
    */
   SupereightInterface(const se::PinholeCameraConfig &cameraConfig,
                       const se::MapConfig &mapConfig,
@@ -134,10 +144,10 @@ public:
   /**
    * @brief      Adds a depth frame to the measurement Queue.
    *
-   * @param[in]  stamp       The timestamp
-   * @param[in]  depthFrame  The depth frame
+   * @param[in]  stamp       The timestamp.
+   * @param[in]  depthFrame  The depth frame.
    *
-   * @return     True if successful
+   * @return     True if successful.
    */
   bool addDepthImage(const okvis::Time &stamp, const cv::Mat &depthFrame);
 
@@ -147,9 +157,9 @@ public:
   void display();
 
   /**
-   * @brief      Starts the processing and data prepatation threads
+   * @brief      Starts the processing and data prepatation threads.
    *
-   * @return     True when successful
+   * @return     True when successful.
    */
   bool start();
 
@@ -174,7 +184,7 @@ public:
   size_t getSupereightQueueSize() { return supereightFrames_.Size(); };
 
   /**
-   * @brief      Set blocking/not blocking mode
+   * @brief      Set blocking/not blocking mode.
    *
    */
   void setBlocking(bool blocking) {
@@ -183,25 +193,27 @@ public:
 
 
 /**
-   * @brief      triggers copy assignment of read-only lookup tables for the collision function
+   * @brief      Called by the planner: copies lookup tables that are needed by the planner and saves them in separate data structures.
+   * We do this instead of just using a mutex because planner needs to use the lookups lots of 
+   * times and we don't want to slow down the main pipeline.
    *
    */
 void fixReadLookups();
 
 /**
-   * @brief      Set function that handles submaps processing (use this to publish in ROS)
+   * @brief      Set function that handles submaps visualization (meshes version)
    *
    */
 void setSubmapMeshesCallback(const submapMeshesCallback &submapMeshesCallback) { submapMeshesCallback_ = submapMeshesCallback; }
 
 /**
-   * @brief      Set function that handles submaps processing (use this to publish in ROS)
+   * @brief      Set function that handles submaps visualization (blocks version)
    *
    */
 void setSubmapCallback(const submapCallback &submapCallback) { submapCallback_ = submapCallback; }
 
 /**
-   * @brief      Visualize submaps in Publisher
+   * @brief      Launch visualization thread.
    *
    */
 void publishSubmaps();
@@ -226,7 +238,7 @@ struct SpatialHasher {
 std::unordered_map<uint64_t, SubmapList::iterator> submapLookup_; // use this to access submaps (index,submap)
 std::unordered_map<uint64_t, Transformation> submapPoseLookup_; // use this to access submap poses (index,pose in camera frame)
 std::unordered_map<uint64_t, Eigen::Matrix<float,6,1>> submapDimensionLookup_; // use this when reindexing maps on loop closures (index,dims)
-// spatial hash maps: sidexsidexside boxes 
+// spatial hash maps: side x side x side boxes 
 std::unordered_map<Eigen::Vector3i, std::unordered_set<int>, SpatialHasher> hashTable_; // a hash table for quick submap access (box coord, list of indexes)
 std::unordered_map<int, std::unordered_set<Eigen::Vector3i, SpatialHasher>> hashTableInverse_; // inverse access hash table (index, list of box coords)
 // Static lookups to use for collision checking 
@@ -238,6 +250,7 @@ std::unordered_map<Eigen::Vector3i, std::unordered_set<int>, SpatialHasher> hash
 
 
 private:
+
   /**
    * @brief      Converts an OpenCV Mat depth frame following the TUM convention
    * (5000.f -> 1m ) into the depth Images used in supereight
@@ -258,6 +271,18 @@ private:
    */
   static cv::Mat depthImage2Mat(const DepthFrame &depthFrame);
 
+  /**
+   * @brief      Given time stamp of depth frame, propagates latest okvis update to get pose estimate. It also gets from the states updates queue: 
+   * vector of updated keyframes, latest keyframe id, loop closure status.
+   *
+   * @param[in]  finalTimestamp  Timestamp of the depth frame. 
+   * @param[out]  T_WC  Predicted depth frame pose w.r.t. world.
+   * @param[out]  keyframeId  Latest Keyframe Id.
+   * @param[out]  keyFrameDataVec  Array of updated Keyframes.
+   * @param[out]  loop_closure  Is the latest Okvis update a loop closure update?
+   *
+   * @return     The depth frame as a supereight Image
+   */
   bool predict(const okvis::Time &finalTimestamp,
                Transformation &T_WC, uint64_t &keyframeId,
                KeyFrameDataVec &keyFrameDataVec,
@@ -286,18 +311,31 @@ private:
   bool dataReadyForProcessing();
 
   /**
-   * @brief   Re assign spatial hash table for kfs involved in loop closure
-   * We pass lookups to fix them and avoid segfaults
+   * @brief   Re assign spatial hash table for a given map.
+   * 
+   * @param[in]  id  Id of the map.
+   * @param[in]  Tf  Pose of the map
+   * @param[in]  map  Pointer to the map.
+   * 
    */
   void redoSpatialHashing(const uint64_t id, const Transformation Tf, const SubmapList::iterator map);
 
   /**
-   * @brief   Pre-index new map as soon as we start integrating
+   * @brief   Pre-index new map as soon as we start integrating.
+   * 
+   * @param[in]  id  Id of the map.
+   * @param[in]  pos_kf Position of the Keyframe related to the map.
+   * 
    */
   void doPrelimSpatialHashing(const uint64_t id, const Eigen::Vector3d pos_kf);
 
   /**
-   * @brief   Index new map when it's done being integrated
+   * @brief   Index new map when it's done being integrated.
+   * 
+   * @param[in]  id  Id of the map.
+   * @param[in]  Tf  Pose of the map
+   * @param[in]  map  Pointer to the map.
+   * 
    */
   void doSpatialHashing(const uint64_t id, const Transformation Tf, const SubmapList::iterator map);
 
@@ -325,7 +363,6 @@ private:
                             ///< integration
   std::mutex cvMutex_;
   std::mutex s8Mutex_;
-  std::mutex subMapMutex_;
   std::mutex hashTableMutex_; // either dohashing or redohashing
 
   std::thread processingThread_;      ///< Thread running processing loop.

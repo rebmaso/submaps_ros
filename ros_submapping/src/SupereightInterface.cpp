@@ -87,9 +87,8 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
                                   bool &loop_closure) {
 
   // Get the okvis update closest to the finalTimestamp (the stamp of the depth frame)
-  // This should be redundant, since okvis::trajectory does not need it to do imu prop
-  // however, we also need to know which if latest okvis update is a keyframe! 
-  // okvis trajectory does not keep a copy of the tracking state. so we must still do this redundant bull
+  // We use Okvis::trajectory to propagate state. Also need to use the updates queue bc we also need
+  // Updated kfs and all that other stuff that we need to build supereight frames
 
   OkvisUpdate initialStateData;
   OkvisUpdate initialStateTemp;
@@ -103,6 +102,7 @@ bool SupereightInterface::predict(const okvis::Time &finalTimestamp,
     stateUpdates_.PopNonBlocking(&initialStateTemp);
   }
 
+  // return false if there's no keyframe updates
   if (initialStateData.keyframeStates.empty()) return false;
 
   if (initialStateData.isKeyframe || no_kf_yet) { // first update should always be keyframe, but lets be safe
@@ -190,9 +190,8 @@ void SupereightInterface::processSupereightFrames() {
 
     //compute distance from last keyframe:
     bool distant_enough = false;
-    const double treshold = 4.0;
     const double distance = (submapPoseLookup_[supereightFrame.keyframeId].r() - submapPoseLookup_[prevKeyframeId].r()).norm();
-    if (distance > treshold) distant_enough = true;
+    if (distance > distThreshold_) distant_enough = true;
 
     // current kf has changed, and it is distant enough from last one
     if ((supereightFrame.keyframeId != prevKeyframeId && distant_enough)|| submaps_.empty()) { 

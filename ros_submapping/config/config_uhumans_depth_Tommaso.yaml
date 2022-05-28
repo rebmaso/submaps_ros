@@ -46,3 +46,6 @@ planner:
   min_z:                      -4.0
   max_z:                      4.0
   mav_radius:                 0.3
+
+submaps:
+  dist_threshold:             3.0

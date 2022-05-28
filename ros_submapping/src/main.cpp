@@ -216,11 +216,18 @@ sync(MySyncPolicy(1000), image0_sub, image1_sub)
   const Eigen::Matrix4d T_SC = parameters.nCameraSystem.T_SC(0)->T();
 
   publisher.setT_SC(T_SC);
+
+  // Get submaps distance from config
+  cv::FileStorage fs;
+  fs.open(config_s8, cv::FileStorage::READ | cv::FileStorage::FORMAT_YAML);
+  const cv::FileNode node = fs["submaps"];
+  float distThreshold;
+  se::yaml::subnode_as_float(node, "dist_threshold", distThreshold);
+  assert(distThreshold >= 0);
   
-  //se_interface = new SupereightInterface(cameraConfig, mapConfig, dataConfig, T_SC, meshesDir);
-  se_interface = std::make_shared<SupereightInterface>(cameraConfig, mapConfig, dataConfig, T_SC, meshesDir);
+  se_interface = std::make_shared<SupereightInterface>(cameraConfig, mapConfig, dataConfig, T_SC, meshesDir, static_cast<double>(distThreshold));
   
-  // run in real time or not?
+  // run in real time (not blocking) or not (blocking)?
   // while tracking should be real time, it's not relevant with depth integration
   // so you can also run it blocking
   se_interface->setBlocking(false);
@@ -372,7 +379,8 @@ void RosInterfacer::imgsCallback(const sensor_msgs::ImageConstPtr& img_0, const 
 
 void RosInterfacer::depthCallback(const sensor_msgs::ImageConstPtr& img){
 
-  // TODO understand why this shit does not work w realsense. gonna have to stop using cv bridge sooner or later
+  // TODO understand why this does not work w realsense (does work with uhumans dataset). 
+  // gonna have to stop using cv bridge sooner or later
 
   // cv::Mat raw_depth(img->height, img->width, CV_32FC1, const_cast<uint8_t*>(&img->data[0]), img->step);
   // okvis::Time t(img->header.stamp.sec, img->header.stamp.nsec);

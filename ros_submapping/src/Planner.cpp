@@ -26,15 +26,19 @@ Planner::Planner(SupereightInterface* se_interface_, const std::string& filename
   // Read the config parameters.
   se::yaml::subnode_as_float(node, "min_x", raw_bounds[0]);
   se::yaml::subnode_as_float(node, "max_x", raw_bounds[1]);
+  assert(raw_bounds[0] <= raw_bounds[1]);
   se::yaml::subnode_as_float(node, "min_y", raw_bounds[2]);
   se::yaml::subnode_as_float(node, "max_y", raw_bounds[3]);
+  assert(raw_bounds[2] <= raw_bounds[3]);
   se::yaml::subnode_as_float(node, "min_z", raw_bounds[4]);
   se::yaml::subnode_as_float(node, "max_z", raw_bounds[5]);
+  assert(raw_bounds[4] <= raw_bounds[5]);
 
   // set collision function radius
   se::yaml::subnode_as_float(node, "mav_radius", mav_radius);
+  assert(mav_radius >= 0);
 
-  std::cout << "\n\nPlanner bounds set as: ";
+  std::cout << "\n\nPlanner bounds: ";
 
   for (int i = 0; i < 6; i++)
   {
@@ -43,7 +47,7 @@ Planner::Planner(SupereightInterface* se_interface_, const std::string& filename
 
   std::cout << "\n\n";
 
-  std::cout << "\n\nMAV radius in planner set as: " << mav_radius << "\n\n";
+  std::cout << "\n\nMAV radius in planner: " << mav_radius << "\n\n";
 
   ob::RealVectorBounds bounds(3);
 
@@ -103,10 +107,6 @@ Planner::Planner(SupereightInterface* se_interface_, const std::string& filename
   
   // create empty path
   path = std::make_shared<og::PathGeometric>(ss->getSpaceInformation());
-
-  //started = false;
-
-  std::cout << "\n\nPlanner initialized\n\n";
 
 }
 
@@ -187,7 +187,7 @@ bool Planner::plan()
   }
 
   // TODO: REF PUBLISHER 
-  // std::thread publishCtrl(ctrlPublisher, path); // publish as references for the mpc
+  // std::thread publishCtrl(ctrlPublisher, path); // publish as references for the controller
   // ctrlPublisher.detach();
 
   return true; 

@@ -117,14 +117,17 @@ public:
                       const se::MapConfig &mapConfig,
                       const se::OccupancyDataConfig &dataConfig,
                       const Eigen::Matrix4d &T_SC,
-                      const std::string &meshesPath)
+                      const std::string &meshesPath,
+                      const double &distThreshold = 4)
       : T_SC_(T_SC), T_CS_(T_SC.inverse()), sensor_(cameraConfig), mapConfig_(mapConfig),
-        dataConfig_(dataConfig), meshesPath_(meshesPath) {
+        dataConfig_(dataConfig), meshesPath_(meshesPath), distThreshold_(distThreshold) {
     
     //se::OccupancyMap<se::Res::Multi> map(mapConfig_, dataConfig_);
     no_kf_yet = true;
     latestKeyframeId = 1;
     blocking_ = true;
+
+    std::cout << "\n\nSubmap distance threshold: " << distThreshold_ << "\n\n";
   };
 
   /**
@@ -383,6 +386,9 @@ private:
 
   // Need this to extract okvis estimates at abitrary timestamps
   okvis::Trajectory propagatedStates;
+
+  // Distance threshold to generate new map.
+  const double distThreshold_;
 
 };
 

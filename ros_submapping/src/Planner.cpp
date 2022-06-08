@@ -14,28 +14,33 @@ Planner::Planner(SupereightInterface* se_interface_, const std::string& filename
 
   float raw_bounds[6];
 
-  // Open the file for reading
+  // Open the YAML file for reading
   // TODO catch exception for missing stuff in yaml
 
   cv::FileStorage fs;
   fs.open(filename, cv::FileStorage::READ | cv::FileStorage::FORMAT_YAML);
 
-  // Get the node containing the sensor configuration.
-  const cv::FileNode node = fs["planner"];
+  // Get the node containing map configs
+  const cv::FileNode node_map = fs["map"];
+  // Read map res (need it in collision function)
+  se::yaml::subnode_as_float(node_map, "res", map_res);
+
+  // Get the node containing planner configs
+  const cv::FileNode node_planner = fs["planner"];
 
   // Read the config parameters.
-  se::yaml::subnode_as_float(node, "min_x", raw_bounds[0]);
-  se::yaml::subnode_as_float(node, "max_x", raw_bounds[1]);
+  se::yaml::subnode_as_float(node_planner, "min_x", raw_bounds[0]);
+  se::yaml::subnode_as_float(node_planner, "max_x", raw_bounds[1]);
   assert(raw_bounds[0] <= raw_bounds[1]);
-  se::yaml::subnode_as_float(node, "min_y", raw_bounds[2]);
-  se::yaml::subnode_as_float(node, "max_y", raw_bounds[3]);
+  se::yaml::subnode_as_float(node_planner, "min_y", raw_bounds[2]);
+  se::yaml::subnode_as_float(node_planner, "max_y", raw_bounds[3]);
   assert(raw_bounds[2] <= raw_bounds[3]);
-  se::yaml::subnode_as_float(node, "min_z", raw_bounds[4]);
-  se::yaml::subnode_as_float(node, "max_z", raw_bounds[5]);
+  se::yaml::subnode_as_float(node_planner, "min_z", raw_bounds[4]);
+  se::yaml::subnode_as_float(node_planner, "max_z", raw_bounds[5]);
   assert(raw_bounds[4] <= raw_bounds[5]);
 
   // set collision function radius
-  se::yaml::subnode_as_float(node, "mav_radius", mav_radius);
+  se::yaml::subnode_as_float(node_planner, "mav_radius", mav_radius);
   assert(mav_radius >= 0);
 
   std::cout << "\n\nPlanner bounds: ";
@@ -167,8 +172,7 @@ bool Planner::plan()
   // load current start & goal
   ss->setStartAndGoalStates(start_ompl, goal_ompl);
 
-  // planner will keep optimizing for 0.2 secs, unless
-  // you set a large cost treshold
+  // solve planning problem
   ob::PlannerStatus solved = ss->solve(10.0);
 
   if (solved) {
@@ -200,7 +204,6 @@ bool Planner::plan()
 void Planner::processState(const okvis::State& state, const okvis::TrackingState& trackingstate)
 {
 
-
   start = state.T_WS.r();
 
 }
@@ -221,17 +224,18 @@ bool Planner::detectCollision(const ompl::base::State *state)
   if((r.head<3>() - start_fixed).norm() < 0.5) return true;
 
   // check occ inside a sphere around the drone 
-  // very sparse 
-  // lowest res is 1 voxel = 0.2m
-  const float rad = mav_radius; // radius of the sphere
+  // to avoid missing inbetween voxels, should check 
+  // with a step that is <= res! should be = sqrt(2) * res
+  // to be extra safe, since each submap's grid is rotated wrt 
+  // world grid, but let's do = res for efficiency
 
-  for (float z = -rad; z <= rad; z += rad/2)
+  for (float z = -mav_radius; z <= mav_radius; z += map_res)
   {
-    for (float y = -rad; y <= rad; y += rad/2)
+    for (float y = -mav_radius; y <= mav_radius; y += map_res)
     {
-      for (float x = -rad; x <= rad; x += rad/2)
+      for (float x = -mav_radius; x <= mav_radius; x += map_res)
       {
-        if((std::pow(x,2) + std::pow(y,2) + std::pow(z,2)) > std::pow(rad,2)) continue; // skip if point is outside radius
+        if((std::pow(x,2) + std::pow(y,2) + std::pow(z,2)) > std::pow(mav_radius,2)) continue; // skip if point is outside radius
 
         // CHECK OCCUPANCY AMONG LOCAL SUBMAPS:
 
@@ -248,13 +252,13 @@ bool Planner::detectCollision(const ompl::base::State *state)
           box_coord(i) = (int)(floor(r_new(i)));
         }
 
+        // need this to avg occupancy
+        double tot_occupancy = 0; 
+        double tot_weight = 0;
+        
         // iterate over submap ids (only the ones that contain current state!)
         // if not in any submap -> return false
         if (!se_interface->hashTable_read.count(box_coord)) return false;
-
-        // need this to avg occupancy
-        double tot_occupancy = 0; 
-
         for (auto& id: se_interface->hashTable_read[box_coord]) {
 
           // transform state coords to check from world to map frame
@@ -262,21 +266,19 @@ bool Planner::detectCollision(const ompl::base::State *state)
           const Eigen::Vector4d r_map_hom = T_wf.inverse() * r_new;// state coordinates (homogenous) in map frame
           const Eigen::Vector3f r_map = r_map_hom.head<3>().cast<float>(); // take first 3 elems and cast to float
           
-          // if voxel belongs to current submap
-          if (!se_interface->submapLookup_read.count(id)) return false;
+          // if voxel belongs to current submap -> add occupancy
+          if(!se_interface->submapLookup_read.count(id)) continue;
           if((*se_interface->submapLookup_read[id])->contains(r_map))
           {
             auto data = (*se_interface->submapLookup_read[id])->getData(r_map);
-            double occupancy = data.occupancy * data.weight; // occupancy value of the 3d point
-            tot_occupancy += occupancy;
+            tot_occupancy += data.occupancy * data.weight;
+            tot_weight += data.weight;
           }
         } 
         
-        // when done iterating over submaps, check total occupancy
-
-        if(tot_occupancy >= -20) {
-          return false; // occupied!
-        }
+        // when done iterating over submaps, check total occupancy (weighted average)
+        if(tot_weight = 0) return false;
+        if(tot_occupancy/tot_weight > -10) return false; 
         
       } // x
     } // y

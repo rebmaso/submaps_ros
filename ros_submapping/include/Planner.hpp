@@ -74,6 +74,9 @@ private:
   // The closest we can get to obstacles.
   float mav_radius;
 
+  // Map resolution
+  float map_res;
+
   // External visualizer 
   pathCallback pathCallback_;
 

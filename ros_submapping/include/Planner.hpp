@@ -78,7 +78,7 @@ private:
   float map_res;
 
   // Flag to preempt running planning thread.
-  // bool preempt_plan;
+  bool preempt_plan;
 
   // Stores latest planning attempt start time.
   std::chrono::steady_clock::time_point start_time;
@@ -160,7 +160,7 @@ public:
    * preempted, or time limit has passed
    *
    */
-  // bool terminatePlanner();
+  bool terminatePlanner();
 
 };
 

@@ -311,8 +311,6 @@ void RosInterfacer::slam_loop(){
 void RosInterfacer::navGoalCallback(const geometry_msgs::Point &msg) 
 {
   Eigen::Vector3d r(msg.x,msg.y,msg.z);
-
-  std::cout << "BBBB\n";
   
   planner->setGoal(r);
 

@@ -3,7 +3,7 @@
 Planner::Planner(SupereightInterface* se_interface_, const std::string& filename) {
 
   // Set preempt flag
-  // preempt_plan = false;
+  preempt_plan = false;
   
   // ============ SET SEINTERFACE PTR ============  
 
@@ -136,8 +136,6 @@ void Planner::setGoal(const Eigen::Vector3d & r)
 bool Planner::plan(const Eigen::Vector3d r)
 { 
 
-  std::cout << "AAAAA \n";
-
   // As of now, thread is blocked if there's a running plan() thread. 
   // Should not be this way --> preempt running thread with latest
   
@@ -146,10 +144,10 @@ bool Planner::plan(const Eigen::Vector3d r)
   // warning: preempt is not immediate, so we should still wait for the thread to free the mutex.
   // Almost there, but ptc does not work inside the planner! planner does not check for termination condition!
 
-  // preempt_plan = true;
+  preempt_plan = true;
   std::unique_lock<std::mutex> lk(planMutex);
   // flag is lowered here, as soon as the thread takes control
-  // preempt_plan = false;
+  preempt_plan = false;
 
   // need this later, for a hack in collision detector
   start_fixed = start;
@@ -166,9 +164,9 @@ bool Planner::plan(const Eigen::Vector3d r)
   << start[0] << " " 
   << start[1] << " " 
   << start[2] << " to: " 
-  << goal[0]<< " " 
-  << goal[1]<< " " 
-  << goal[2]<< "\n\n";
+  << r[0]<< " " 
+  << r[1]<< " " 
+  << r[2]<< "\n\n";
 
   // create ompl start state
   ob::ScopedState<ob::RealVectorStateSpace> start_ompl(space);
@@ -178,9 +176,9 @@ bool Planner::plan(const Eigen::Vector3d r)
 
   // create ompl goal state
   ob::ScopedState<ob::RealVectorStateSpace> goal_ompl(space);
-  (*goal_ompl)[0] = goal[0];
-  (*goal_ompl)[1] = goal[1];
-  (*goal_ompl)[2] = goal[2];
+  (*goal_ompl)[0] = r[0];
+  (*goal_ompl)[1] = r[1];
+  (*goal_ompl)[2] = r[2];
 
   ss->clear();
 
@@ -191,11 +189,11 @@ bool Planner::plan(const Eigen::Vector3d r)
   // Thread terminates either when preempted by new planing query
   // or when too much time has passed.
   start_time = std::chrono::steady_clock::now();
-  // ob::PlannerTerminationCondition ptc(std::bind(&Planner::terminatePlanner,this));
-  // ob::PlannerTerminationCondition ptc = ob::timedPlannerTerminationCondition(2.0);
+  ob::PlannerTerminationCondition ptc(std::bind(&Planner::terminatePlanner,this));
+  //ob::PlannerTerminationCondition ptc = ob::timedPlannerTerminationCondition(0.2);
 
-  ob::PlannerStatus solved = ss->solve(10.0);
-  //ob::PlannerStatus solved = ss->solve(*ptc);
+  // ob::PlannerStatus solved = ss->solve(10.0);
+  ob::PlannerStatus solved = ss->solve(ptc);
   
   if (solved) {
 
@@ -218,8 +216,6 @@ bool Planner::plan(const Eigen::Vector3d r)
 
   return true; 
   }
-
-  lk.unlock();
   
   return false; // if not solved
  
@@ -240,9 +236,6 @@ void Planner::processState(const okvis::State& state, const okvis::TrackingState
 bool Planner::detectCollision(const ompl::base::State *state) 
 {
 
-  // buttami!
-  std::this_thread::sleep_for (std::chrono::milliseconds(300));
-
   const ompl::base::RealVectorStateSpace::StateType *pos = state->as<ompl::base::RealVectorStateSpace::StateType>();
   
   // the voxel we want to query (wrt world frame, homogenous)
@@ -254,18 +247,19 @@ bool Planner::detectCollision(const ompl::base::State *state)
   if((r.head<3>() - start_fixed).norm() < 0.5) return true;
 
   // check occ inside a sphere around the drone 
-  // to avoid missing inbetween voxels, should check 
-  // with a step that is <= res! should be = sqrt(2) * res
-  // to be extra safe, since each submap's grid is rotated wrt 
-  // world grid, but let's do = res for efficiency
+  // step is the map res, not to miss any voxels.
+  // radius of the sphere is actually not 
+  // the true radius, but:
+  // ceil is conservative, floor is faster but might get too close to obstacles
+  double radius = map_res * floor(mav_radius/map_res);
 
-  for (float z = -mav_radius; z <= mav_radius; z += map_res)
+  for (float z = -radius; z <= radius; z += map_res)
   {
-    for (float y = -mav_radius; y <= mav_radius; y += map_res)
+    for (float y = -radius; y <= radius; y += map_res)
     {
-      for (float x = -mav_radius; x <= mav_radius; x += map_res)
+      for (float x = -radius; x <= radius; x += map_res)
       {
-        if((std::pow(x,2) + std::pow(y,2) + std::pow(z,2)) > std::pow(mav_radius,2)) continue; // skip if point is outside radius
+        if((std::pow(x,2) + std::pow(y,2) + std::pow(z,2)) > std::pow(radius,2)) continue; // skip if point is outside radius
 
         // CHECK OCCUPANCY AMONG LOCAL SUBMAPS:
 
@@ -307,8 +301,9 @@ bool Planner::detectCollision(const ompl::base::State *state)
         } 
         
         // when done iterating over submaps, check total occupancy (weighted average)
-        if(tot_weight = 0) return false;
-        if(tot_occupancy/tot_weight > -10) return false; 
+        if(tot_weight == 0) return false;
+        if(tot_occupancy/tot_weight >= 0 ) return false; 
+        //if(tot_occupancy > -20 || tot_weight == 0) return false; 
         
       } // x
     } // y
@@ -319,21 +314,21 @@ bool Planner::detectCollision(const ompl::base::State *state)
 
 }
 
-// bool Planner::terminatePlanner(){
+bool Planner::terminatePlanner(){
 
-//   // if there's a new planning thread or too much time has elapsed
-//   if (preempt_plan)
-//   {
-//     std::cout << "\n\nNew query: planning preempted! \n\n";
-//     return true;
-//   }
+  // if there's a new planning thread or too much time has elapsed
+  if (preempt_plan)
+  {
+    std::cout << "\n\nNew query: planning preempted! \n\n";
+    return true;
+  }
 
-//   if (std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - start_time).count() > 5.0)
-//   {
-//     std::cout << "\n\nAbort planning: taking too long! \n\n";
-//     return true;
-//   }
+  if (std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - start_time).count() > 10.0)
+  {
+    std::cout << "\n\nTaking too long: aborting planning! \n\n";
+    return true;
+  }
 
-//   return false;
+  return false;
 
-// }
+}

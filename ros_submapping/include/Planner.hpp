@@ -77,6 +77,12 @@ private:
   // Map resolution
   float map_res;
 
+  // Flag to preempt running planning thread.
+  // bool preempt_plan;
+
+  // Stores latest planning attempt start time.
+  std::chrono::steady_clock::time_point start_time;
+
   // External visualizer 
   pathCallback pathCallback_;
 
@@ -115,9 +121,17 @@ public:
    *
    */
   void setGoal(const Eigen::Vector3d & r);
-  
+
   /**
    * @brief      Plans path from current start to goal
+   * 
+   * @param[in]  r The goal state. 
+   *
+   */
+  bool plan(const Eigen::Vector3d r);
+  
+  /**
+   * @brief      Plans path from current start to latest set goal.
    *
    */
   bool plan();
@@ -140,6 +154,13 @@ public:
    *
    */
   bool detectCollision(const ompl::base::State *state);
+
+  /**
+   * @brief     OMPL termination condition function. Checks if 
+   * preempted, or time limit has passed
+   *
+   */
+  // bool terminatePlanner();
 
 };
 

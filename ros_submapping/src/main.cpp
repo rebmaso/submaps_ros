@@ -311,11 +311,16 @@ void RosInterfacer::slam_loop(){
 void RosInterfacer::navGoalCallback(const geometry_msgs::Point &msg) 
 {
   Eigen::Vector3d r(msg.x,msg.y,msg.z);
+
+  std::cout << "BBBB\n";
   
   planner->setGoal(r);
 
-  thread_planner = std::thread(&Planner::plan,planner.get());
+  // overloaded function -> does not work -> use lambda
+  //thread_planner = std::thread(Planner::plan,planner.get(),r);
+  thread_planner = std::thread([&](Eigen::Vector3d goal){planner->plan(goal);},r);
   thread_planner.detach();
+
 }
 
 

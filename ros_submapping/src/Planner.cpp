@@ -2,6 +2,9 @@
 
 Planner::Planner(SupereightInterface* se_interface_, const std::string& filename) {
 
+  // Set preempt flag
+  // preempt_plan = false;
+  
   // ============ SET SEINTERFACE PTR ============  
 
   se_interface = se_interface_;
@@ -96,7 +99,7 @@ Planner::Planner(SupereightInterface* se_interface_, const std::string& filename
   // // if we dont set this, rrtstar will keep on looking for better solutions until it runs out of time
   // only need this for rrt* /informed rrt * (the optimal ones)
   // rrt and rrt connect take the first sol by default,
-  // and then you can simplify the solution after
+  // and then you can simplify the solution 
   // ob::Cost cost(1000.0); // set super high cost treshold
   // obj->setCostThreshold(cost); // so planning stops as soon as a first solution is found
 
@@ -109,7 +112,7 @@ Planner::Planner(SupereightInterface* se_interface_, const std::string& filename
   rrt->setRange(0.4);
 
   ss->setPlanner(rrt);
-  
+
   // create empty path
   path = std::make_shared<og::PathGeometric>(ss->getSpaceInformation());
 
@@ -129,17 +132,29 @@ void Planner::setGoal(const Eigen::Vector3d & r)
 
 }
 
-bool Planner::plan()
+// pass by value to avoid dangling reference
+bool Planner::plan(const Eigen::Vector3d r)
 { 
 
-  // set the fixed lookups for the collision checking func
+  std::cout << "AAAAA \n";
 
-  // wait if other plan thread is executing
+  // As of now, thread is blocked if there's a running plan() thread. 
+  // Should not be this way --> preempt running thread with latest
+  
+  // TODO:
+  // preempt any other running planning thread, and wait for it to free the mutex.
+  // warning: preempt is not immediate, so we should still wait for the thread to free the mutex.
+  // Almost there, but ptc does not work inside the planner! planner does not check for termination condition!
+
+  // preempt_plan = true;
   std::unique_lock<std::mutex> lk(planMutex);
+  // flag is lowered here, as soon as the thread takes control
+  // preempt_plan = false;
 
   // need this later, for a hack in collision detector
   start_fixed = start;
 
+  // set the fixed lookups for the collision checking func
   se_interface->fixReadLookups();
 
   if (se_interface->submapLookup_read.empty() || se_interface->hashTable_read.empty()) {
@@ -172,9 +187,16 @@ bool Planner::plan()
   // load current start & goal
   ss->setStartAndGoalStates(start_ompl, goal_ompl);
 
-  // solve planning problem
-  ob::PlannerStatus solved = ss->solve(10.0);
+  // Planner termination condition. 
+  // Thread terminates either when preempted by new planing query
+  // or when too much time has passed.
+  start_time = std::chrono::steady_clock::now();
+  // ob::PlannerTerminationCondition ptc(std::bind(&Planner::terminatePlanner,this));
+  // ob::PlannerTerminationCondition ptc = ob::timedPlannerTerminationCondition(2.0);
 
+  ob::PlannerStatus solved = ss->solve(10.0);
+  //ob::PlannerStatus solved = ss->solve(*ptc);
+  
   if (solved) {
 
   // get optimal path
@@ -196,9 +218,15 @@ bool Planner::plan()
 
   return true; 
   }
+
+  lk.unlock();
   
   return false; // if not solved
  
+}
+
+bool Planner::plan() {
+  return plan(goal);
 }
 
 void Planner::processState(const okvis::State& state, const okvis::TrackingState& trackingstate)
@@ -211,7 +239,9 @@ void Planner::processState(const okvis::State& state, const okvis::TrackingState
 
 bool Planner::detectCollision(const ompl::base::State *state) 
 {
-  // with hash table, checking for circle around drone
+
+  // buttami!
+  std::this_thread::sleep_for (std::chrono::milliseconds(300));
 
   const ompl::base::RealVectorStateSpace::StateType *pos = state->as<ompl::base::RealVectorStateSpace::StateType>();
   
@@ -288,3 +318,22 @@ bool Planner::detectCollision(const ompl::base::State *state)
   return true;
 
 }
+
+// bool Planner::terminatePlanner(){
+
+//   // if there's a new planning thread or too much time has elapsed
+//   if (preempt_plan)
+//   {
+//     std::cout << "\n\nNew query: planning preempted! \n\n";
+//     return true;
+//   }
+
+//   if (std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - start_time).count() > 5.0)
+//   {
+//     std::cout << "\n\nAbort planning: taking too long! \n\n";
+//     return true;
+//   }
+
+//   return false;
+
+// }

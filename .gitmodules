@@ -1,10 +1,7 @@
 [submodule "ros_submapping/okvis2"]
 	path = ros_submapping/okvis2
-	url = git@bitbucket.org:trebeggiani/okvis2.git
-	branch = task/extendedcallbacks
+	url = git@bitbucket.org:smartroboticslab/okvis2.git
+	branch = task/submaps
 [submodule "ros_submapping/supereight-2-srl"]
 	path = ros_submapping/supereight-2-srl
 	url = git@bitbucket.org:smartroboticslab/supereight-2-srl.git
-[submodule "rotors_simulator"]
-	path = rotors_simulator
-	url = https://github.com/trebeggiani/rotors_simulator.git

@@ -1,6 +1,6 @@
-# Submaps submaps_ros
+# submaps_ros
 
-This is a ROS navigation stack based on OKVIS 2 and Supereight 2 submaps. The implicit global map is made of multiple local occupancy submaps. The node takes in sensor measurements (IMU, stereo, depth) as ROS topics. The user can plan trajectories on the fly by sending the 3D coordinates of a goal position. The planner is RRT connect, with submaps-compatible collision function. Can easily edit the code and switch to other planners by using the same collision function.
+This is a ROS navigation stack based on OKVIS 2 and Supereight 2 submaps. The implicit global map is made of multiple local occupancy submaps. The node takes in sensor measurements (IMU, stereo, depth) as ROS topics. The user can plan trajectories on the fly by sending the 3D coordinates of a goal position. The planner is RRT connect, with a submaps-compatible collision function. Can easily edit the code and switch to other planners by using the same collision function.
 
 ![This is an image](/imgs/cool_pic.png)
 

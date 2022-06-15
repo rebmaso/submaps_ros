@@ -66,24 +66,3 @@ This goal is a point in the odom frame (it's the okvis world reference frame).
 Starting the pipeline automatically launches Rviz wih a default config. If you open the panel, you'll find a list of extra ROS topics you might want to visualize (stereo and depth frames, Okvis trajectory, ...).
 If you don't want Rviz, just launch with `` rviz:=false ``.
  
-
-## Cool features I want to add / problems to fix
-
-Please feel free to add ideas here.
-
-- Smarter map generation policy: don't create new maps when re-visiting places. Maybe use the spatial hashing thing to check if there's already an old, local map we might want to update, instead of creating a new one. This is the problem of relying on OKVIS' pose graph. I also don't think this issue has been tackled before: looks like voxgraph builds new maps following a purely temporal policy, and integrates into last one.
-
-- Implement own planner. A thing that suits submaps is building local graphs (no collision checking) as you create submaps, and then explore them together + check collision at planning time, linking them. A sort of extended PRM (Voxplan already did it with ESDF maps). Or maybe just write an A* (not in OMPL, might be faster) that uses my submaps-enabled collision function.
-
-- Add some pose-graph-based path verification to avoid cutting through walls when drift distorts map and creates artificial free space.
-
-- Use GPS-enabled OKVIS 2?
-
-- Migrate to ROS 2.
-
-
-
-
-
-
-

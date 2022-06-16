@@ -1,3 +1,10 @@
+# Warning :warning:
+
+This repository relies on Okvis2 as a submodule. Okvis2 is not public yet. 
+This means you won't be able to build the software as you don't have access to all the submodules.
+Until Okvis2 is released, you are most welcome to browse the code.
+
+
 # submaps_ros
 
 This is a ROS navigation stack based on OKVIS 2 and Supereight 2 submaps. The implicit global map is made of multiple local occupancy submaps. The node takes in sensor measurements (IMU, stereo, depth) as ROS topics. The user can plan trajectories on the fly by sending the 3D coordinates of a goal position. The planner is RRT connect, with a submaps-compatible collision function. Can easily edit the code and switch to other planners by using the same collision function.
@@ -16,7 +23,7 @@ Additional stuff that my project needs:
 
 `` sudo apt-get install ros-noetic-desktop-full ros-noetic-cv-bridge ros-noetic-pcl-ros ros-noetic-pcl-conversions ros-noetic-image-transport libpcl-dev``
 
-This project contains submodules (a fork of Okvis 2 and Supereight 2). After you clone it, you should run this command:
+This project contains submodules (Okvis 2 and Supereight 2). After you clone it, you should run this command:
 
 `` git submodule update --init --recursive ``
 
